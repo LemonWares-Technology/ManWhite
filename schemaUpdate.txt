@@ -1,0 +1,149 @@
+Absolutely! Here’s a detailed review and improvement plan for your Prisma schema, focusing on making it robust and well-aligned with Amadeus API flight booking needs.
+
+---
+
+## 🔎 **Schema Review & Amadeus API Alignment**
+
+### 1. **General Observations**
+- Your schema is **well-structured** for a basic flight booking system.
+- It covers users (including social login), guests, bookings, reviews, carts, and travelers.
+- You already have JSON fields (`apiResponse`, `bookingDetails`, etc.) to store dynamic Amadeus responses.
+
+---
+
+### 2. **Key Amadeus API Requirements**
+
+Amadeus APIs for flight booking typically require/support:
+- **Flight Segments** (multiple legs, codeshares)
+- **Fare Details** (fare basis, price breakdowns, taxes)
+- **Traveler Types** (adult, child, infant)
+- **Ancillary Services** (baggage, seat selection)
+- **Contact Information** (email, phone)
+- **Ticketing Status** (issued, pending, voided)
+- **Payment Details** (card, voucher, etc.)
+- **Special Requests** (meal, assistance)
+- **PNR/Record Locator** (Amadeus booking reference)
+- **Airline/Flight Details** (marketing & operating carriers, flight numbers)
+
+---
+
+### 3. **Recommended Additions & Adjustments**
+
+#### **A. Booking Model Enhancements**
+
+```prisma
+model Booking {
+  // ...existing fields
+
+  amadeusPnr           String?   // Amadeus Record Locator
+  ticketingStatus      TicketingStatus? @default(PENDING)
+  paymentStatus        PaymentStatus?   @default(PENDING)
+  paymentDetails       Json?     // Store payment method, card info (PCI-compliant handling)
+  fareDetails          Json?     // Fare breakdown, taxes, etc.
+  ancillaryServices    Json?     // Baggage, seat selection, etc.
+  specialRequests      Json?     // Meal, assistance, etc.
+  contactEmail         String?
+  contactPhone         String?
+}
+```
+
+#### **B. Traveler Model Enhancements**
+
+```prisma
+model Traveler {
+  // ...existing fields
+
+  travelerType     TravelerType? @default(ADULT) // ADULT, CHILD, INFANT
+  documentType     String?       // Passport, ID, etc.
+  documentNumber   String?
+  documentExpiry   DateTime?
+  nationality      String?
+  // Add loyalty program fields if needed
+  frequentFlyerNumber String?
+  frequentFlyerProgram String?
+}
+```
+
+#### **C. New Enums**
+
+```prisma
+enum TicketingStatus {
+  PENDING
+  ISSUED
+  VOIDED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum TravelerType {
+  ADULT
+  CHILD
+  INFANT
+}
+```
+
+#### **D. Flight Segment Model (Optional, for advanced querying)**
+
+If you want to **normalize** flight segments for querying (instead of just storing in JSON):
+
+```prisma
+model FlightSegment {
+  id             String   @id @default(uuid())
+  booking        Booking  @relation(fields: [bookingId], references: [id])
+  bookingId      String
+  segmentNumber  Int
+  departureAirport String
+  arrivalAirport   String
+  departureTime    DateTime
+  arrivalTime      DateTime
+  marketingCarrier String
+  operatingCarrier String?
+  flightNumber     String
+  cabin            String?
+  fareBasis        String?
+  duration         String?
+  // Add more fields as needed
+}
+```
+
+---
+
+### 4. **Other Suggestions**
+
+- **Indexing:** Consider adding indexes to new search/filter fields (e.g., `amadeusPnr`, `ticketingStatus`).
+- **PCI Compliance:** Never store raw card data in `paymentDetails`—store only references or use a PCI-compliant provider.
+- **Soft Deletes:** Add `deletedAt DateTime?` if you want to support soft deletion.
+- **GDPR:** Consider a `consentGiven Boolean @default(false)` on User/GuestUser.
+
+---
+
+## ✅ **Summary Table of Additions**
+
+| Model       | Field/Enum                  | Purpose                                    |
+|-------------|-----------------------------|--------------------------------------------|
+| Booking     | amadeusPnr                  | Store Amadeus booking reference            |
+| Booking     | ticketingStatus, paymentStatus | Track ticket/payment progress              |
+| Booking     | paymentDetails, fareDetails, ancillaryServices, specialRequests | Store Amadeus API data                     |
+| Booking     | contactEmail, contactPhone  | For Amadeus contact info                   |
+| Traveler    | travelerType, documentType, frequentFlyerNumber, etc. | Traveler details as per Amadeus            |
+| NEW ENUMS   | TicketingStatus, PaymentStatus, TravelerType | For stricter typing                        |
+| (Optional)  | FlightSegment               | Normalize flight segment data (advanced)   |
+
+---
+
+## 🚀 **Next Steps**
+
+- **Update your schema** with the above suggestions.
+- **Regenerate your Prisma Client** after migration.
+- **Map Amadeus API fields** to your new schema for seamless integration.
+
+If you want a ready-to-use, improved schema incorporating these changes, just ask!
+
+---
+Answer from Perplexity: pplx.ai/share

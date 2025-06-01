@@ -1,0 +1,206 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                        String  @id @default(uuid())
+  email                     String  @unique
+  password                  String? // Make password optional for social login users
+  firstName                 String?
+  lastName                  String?
+  googleId                  String? @unique // Store Google's unique ID
+  avatarUrl                 String? // Profile picture from Google
+  verified                  Boolean @default(false)
+  verificationCode          String?
+  verificationCodeExpiresIn String?
+  recoveryCode              String?
+  refreshToken              String?
+  recoveryCodeExpiresIn     String?
+  loginAttempts             Int     @default(0)
+
+  phone                     String?
+  gender                    String?
+  dob                       DateTime?
+  nationality               String?
+  passportNo                String?
+  passportExpiry            DateTime?
+  role                      Role          @default(USER)
+  bookings                  Booking[]
+  reviews                   Review[]
+  cart                      FlightCart[] // User can have multiple flights in cart
+  oneTimeAccessToken        String?
+  oneTimeAccessTokenExpires DateTime?
+  adminToken                String?
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  AccessToken               AccessToken[]
+}
+
+model AccessToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model GuestUser {
+  id         String    @id @default(uuid())
+  email      String
+  firstName  String
+  lastName   String
+  phone      String?
+  address    String?
+  postalCode String?
+  city       String?
+  country    String?
+  bookings   Booking[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([email])
+}
+
+enum Role {
+  USER
+  ADMIN
+  AGENT
+}
+
+model Booking {
+  id             String      @id @default(uuid())
+  userId         String? // Make userId optional
+  user           User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestUserId    String? // Add guestUserId field
+  guestUser      GuestUser?  @relation(fields: [guestUserId], references: [id])
+  referenceId    String      @unique // Booking reference for customers
+  type           BookingType
+  verified       Boolean     @default(false)
+  status         Status      @default(PENDING)
+  // API response data stored as JSON
+  apiResponse    Json // Store the full API response for reference
+  bookingDetails Json // Store the essential booking details
+  totalAmount    Float?
+  currency       String?     @default("USD")
+  // API tracking information
+  apiProvider    String      @default("AMADEUS")
+  apiReferenceId String? // Reference ID from Amadeus
+
+  // Relation to reviews
+  review          Review?
+  travelers       Traveler[]
+  locationDetails Json?
+  airlineDetails  Json?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  FlightAddon FlightAddon[] @relation("BookingAddons")
+
+  @@index([userId])
+  @@index([guestUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Review {
+  id          String      @id @default(uuid())
+  bookingId   String      @unique
+  booking     Booking     @relation(fields: [bookingId], references: [id])
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating      Int // Rating from 1 to 5
+  comment     String? // Optional review comment
+  serviceType ServiceType // What part of the service are they rating
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model FlightCart {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  flightData Json // the selected flightOffer from Amadeus
+  createdAt  DateTime @default(now())
+}
+
+model Traveler {
+  id               String    @id @default(uuid())
+  Booking          Booking?  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId        String?
+  firstName        String
+  lastName         String
+  dateOfBirth      DateTime
+  gender           String
+  email            String
+  phone            String
+  countryCode      String
+  birthPlace       String?
+  passportNumber   String?
+  passportExpiry   DateTime?
+  issuanceCountry  String?
+  validityCountry  String?
+  nationality      String?
+  issuanceDate     DateTime?
+  issuanceLocation String?
+}
+
+model ExcludedAirline {
+  id          String   @id @default(uuid())
+  airlineCode String   @unique
+  reason      String?
+  createdAt   DateTime @default(now())
+}
+
+model MarginSetting {
+  id        String   @id @default(uuid())
+  amount    Float // Fixed margin amount in USD or base currency
+  currency  String   @default("USD") // Currency of the margin amount
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FlightAddon {
+  id          String   @id @default(uuid())
+  bookingId   String?
+  booking     Booking? @relation("BookingAddons", fields: [bookingId], references: [id], onDelete: Cascade)
+  type        String
+  name        String
+  description String?
+  price       Float
+  currency    String   @default("USD")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([bookingId])
+}
+
+enum ServiceType {
+  OVERALL_EXPERIENCE
+  FLIGHT_SERVICE
+  ACCOMMODATION
+  RENTAL_SERVICE
+  BOOKING_PROCESS
+  CUSTOMER_SUPPORT
+}
+
+enum BookingType {
+  FLIGHT
+  HOTEL
+  CAR
+}
+
+enum Status {
+  PENDING
+  CONFIRMED
+  PAID
+  CANCELED
+  REFUNDED
+}
