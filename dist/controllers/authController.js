@@ -47,7 +47,7 @@ const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const newUser = yield prisma.user.create({
             data: {
                 email: email,
-                verficationCode: generateAuthenticationCode(),
+                verificationCode: generateAuthenticationCode(),
                 verificationCodeExpiresIn,
                 verified: true,
             },

@@ -148,6 +148,9 @@ const bookFlight = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         // 1. Verify payment with Flutterwave
         const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTER_SECRET;
         const verifyUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
+        if (!FLUTTERWAVE_SECRET_KEY || !verifyUrl) {
+            return res.status(500).json({ message: "Server misconfiguration" });
+        }
         const flutterwaveRes = yield axios_1.default.get(verifyUrl, {
             headers: {
                 Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
@@ -479,10 +482,14 @@ const bookUserFlight = (req, res) => __awaiter(void 0, void 0, void 0, function*
             return res.status(401).json({ message: "Unauthorized: User ID missing" });
         }
         if (!transactionId) {
-            return res.status(400).json({ message: "Missing Flutterwave transaction ID" });
+            return res
+                .status(400)
+                .json({ message: "Missing Flutterwave transaction ID" });
         }
         if (!travelers || !Array.isArray(travelers) || travelers.length === 0) {
-            return res.status(400).json({ message: "Travelers data missing or invalid" });
+            return res
+                .status(400)
+                .json({ message: "Travelers data missing or invalid" });
         }
         // 1. Verify payment with Flutterwave
         const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTER_SECRET;
@@ -552,7 +559,8 @@ const bookUserFlight = (req, res) => __awaiter(void 0, void 0, void 0, function*
                     const airlines = response.data.data;
                     const map = {};
                     airlines.forEach((airline) => {
-                        map[airline.iataCode] = airline.commonName || airline.name || airline.iataCode;
+                        map[airline.iataCode] =
+                            airline.commonName || airline.name || airline.iataCode;
                     });
                     return map;
                 }
@@ -560,7 +568,7 @@ const bookUserFlight = (req, res) => __awaiter(void 0, void 0, void 0, function*
                     console.error("Failed to fetch airline details:", ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
                     // fallback: map codes to themselves if API fails
                     const fallbackMap = {};
-                    codes.forEach(code => (fallbackMap[code] = code));
+                    codes.forEach((code) => (fallbackMap[code] = code));
                     return fallbackMap;
                 }
             });
@@ -695,7 +703,9 @@ const bookUserFlight = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
     catch (error) {
         console.error("Booking API Error:", ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || error.message);
-        return res.status(500).json({ message: "Error booking flight", error: error.message });
+        return res
+            .status(500)
+            .json({ message: "Error booking flight", error: error.message });
     }
 });
 exports.bookUserFlight = bookUserFlight;

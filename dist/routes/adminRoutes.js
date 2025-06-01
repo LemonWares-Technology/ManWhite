@@ -3,13 +3,24 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const adminController_1 = require("../controllers/adminController");
 const router = (0, express_1.Router)();
-router.post("/create", adminController_1.createAdminAccount); // Tested and working perfectly
-router.post("/login", adminController_1.adminLogin); // Tested and working perfectly
-router.post("/create-agent", adminController_1.createAgent); // Tested and working perfectly
-router.patch("/verify-agent/:agentId", adminController_1.verifyAgent); // Tested and working perfectly
-router.patch("/setup-profile", adminController_1.agentSetupProfile); // Tested and working perfectly
-router.post("/agent-login", adminController_1.loginAgent); // Tested and working perfectly
-router.get("/agent/:agentId", adminController_1.getAgentAccountById); // Tested and working perfectly
+router.route("/create").post(adminController_1.createAdminAccount); // Tested and working perfectly
+router.route("/login").post(adminController_1.adminLogin); // Tested and working perfectly
+router.route("/create-agent/:adminId").post(adminController_1.createAgent); // Tested and working perfectly
+router.route("/create-user/:adminId").post(adminController_1.createUserByAdmin); // Tested and working perfectly
+router.route("/verify-agent/:agentId").patch(adminController_1.verifyAgent); // Tested and working perfectly
+router.route("/setup-profile").patch(adminController_1.agentSetupProfile); // Tested and working perfectly
+router.route("/agent-login").post(adminController_1.loginAgent); // Tested and working perfectly
+router.route("/agent/:agentId").get(adminController_1.getAgentAccountById); // Tested and working perfectly
 router.route("/agents").get(adminController_1.getAllAgentAccounts); // Tested and working perfectly
-router.delete("/delete-agent/:agentId", adminController_1.deleteAgentAccount); // Tested and working perfectly
+router.route("/delete-agent/:agentId").delete(adminController_1.deleteAgentAccount); // Tested and working perfectly
+router.route("/get-bookings-analytics").get(adminController_1.getBookingAnalytics); // Working
+router.route("/get-bookings").get(adminController_1.getAllBookings); // Working
+router.route("/create-code").post(adminController_1.createExclusion); // Working
+router.route("/get-code").get(adminController_1.readExclusion); // Working
+router.route("/update-code/:iataCode").patch(adminController_1.updateExclusion); // Working
+router.route("/delete-code/:iataCode").delete(adminController_1.deleteExclusion); // Working
+router.route("/create-addons/:adminId").post(adminController_1.createFlightAddon);
+router.route("/get-addons").get(adminController_1.getAllFlightAddons);
+router.route("/update-addons").patch(adminController_1.updateFlightAddon);
+router.route("/delete-addons").delete(adminController_1.deleteFlightAddon);
 exports.default = router;
