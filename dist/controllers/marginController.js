@@ -10,6 +10,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createMargin = createMargin;
+exports.getAllMargins = getAllMargins;
+exports.getMarginById = getMarginById;
 exports.updateMargin = updateMargin;
 exports.deleteMargin = deleteMargin;
 const client_1 = require("@prisma/client");
@@ -40,6 +42,36 @@ function createMargin(req, res) {
         }
         catch (error) {
             console.error("Error creating margin:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    });
+}
+function getAllMargins(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const margins = yield prisma.marginSetting.findMany();
+            return res.status(200).json({ margins });
+        }
+        catch (error) {
+            console.error("Error fetching margins:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    });
+}
+function getMarginById(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { marginId } = req.params;
+            const margin = yield prisma.marginSetting.findUnique({
+                where: { id: marginId },
+            });
+            if (!margin) {
+                return res.status(404).json({ error: "Margin not found" });
+            }
+            return res.status(200).json({ margin });
+        }
+        catch (error) {
+            console.error("Error fetching margin:", error);
             return res.status(500).json({ error: "Internal server error" });
         }
     });

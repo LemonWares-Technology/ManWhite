@@ -17,6 +17,8 @@ exports.createAdminAccount = createAdminAccount;
 exports.adminLogin = adminLogin;
 exports.createAgent = createAgent;
 exports.createUserByAdmin = createUserByAdmin;
+exports.updateUserByAdmin = updateUserByAdmin;
+exports.deleteUserByAdmin = deleteUserByAdmin;
 exports.verifyAgent = verifyAgent;
 exports.agentSetupProfile = agentSetupProfile;
 exports.loginAgent = loginAgent;
@@ -194,6 +196,82 @@ function createUserByAdmin(req, res) {
         }
         catch (error) {
             console.error("User creation error:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    });
+}
+function updateUserByAdmin(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { adminId, userId } = req.params;
+        const { email, firstName, nationality, lastName, dob, passportNo, passportExpiry, gender, phone, } = req.body;
+        try {
+            // Check if admin exists and has admin role
+            const adminUser = yield prisma.user.findUnique({ where: { id: adminId } });
+            if (!adminUser || adminUser.role !== client_1.Role.ADMIN) {
+                return res
+                    .status(403)
+                    .json({ error: "Unauthorized: Only admins can update users" });
+            }
+            // Check if target user exists
+            const existingUser = yield prisma.user.findUnique({
+                where: { id: userId },
+            });
+            if (!existingUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            const updatedUser = yield prisma.user.update({
+                where: { id: userId },
+                data: {
+                    email: email !== null && email !== void 0 ? email : existingUser.email,
+                    firstName: firstName !== null && firstName !== void 0 ? firstName : existingUser.firstName,
+                    lastName: lastName !== null && lastName !== void 0 ? lastName : existingUser.lastName,
+                    phone: phone !== null && phone !== void 0 ? phone : existingUser.phone,
+                    nationality: nationality !== null && nationality !== void 0 ? nationality : existingUser.nationality,
+                    gender: gender !== null && gender !== void 0 ? gender : existingUser.gender,
+                    passportNo: passportNo !== null && passportNo !== void 0 ? passportNo : existingUser.passportNo,
+                    dob: dob ? new Date(dob) : existingUser.dob,
+                    passportExpiry: passportExpiry
+                        ? new Date(passportExpiry)
+                        : existingUser.passportExpiry,
+                },
+            });
+            return res.status(200).json({
+                message: "User updated successfully",
+                user: updatedUser,
+            });
+        }
+        catch (error) {
+            console.error("User update error:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    });
+}
+function deleteUserByAdmin(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { adminId, userId } = req.params;
+        try {
+            // Check if admin exists and has admin role
+            const adminUser = yield prisma.user.findUnique({ where: { id: adminId } });
+            if (!adminUser || adminUser.role !== client_1.Role.ADMIN) {
+                return res
+                    .status(403)
+                    .json({ error: "Unauthorized: Only admins can delete users" });
+            }
+            // Check if target user exists
+            const existingUser = yield prisma.user.findUnique({
+                where: { id: userId },
+            });
+            if (!existingUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            yield prisma.user.delete({ where: { id: userId } });
+            return res.status(200).json({
+                message: "User deleted successfully",
+                userId,
+            });
+        }
+        catch (error) {
+            console.error("User deletion error:", error);
             return res.status(500).json({ error: "Internal server error" });
         }
     });

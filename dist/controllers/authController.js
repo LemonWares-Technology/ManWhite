@@ -28,6 +28,7 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const client_1 = require("@prisma/client");
 const emailServices_1 = require("../config/emailServices");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const date_fns_1 = require("date-fns");
 const prisma = new client_1.PrismaClient();
 const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const generateAuthenticationCode = () => {
@@ -125,6 +126,48 @@ const loginAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.loginAccount = loginAccount;
+// export const checkPassword = async (
+//   req: Request,
+//   res: Response
+// ): Promise<any> => {
+//   try {
+//     const { email } = req.params;
+//     const { password } = req.body;
+//     const user = await prisma.user.findUnique({ where: { email } });
+//     if (!user) {
+//       return res.status(404).json({
+//         message: `Account does not exist`,
+//       });
+//     }
+//     if (user) {
+//       const check = await bcryptjs.compare(password, user?.password || "");
+//       if (check) {
+//         // Generate JWT token
+//         const token = jwt.sign(
+//           { id: user.id, email: user.email },
+//           process.env.JWT as string,
+//           { expiresIn: "24h" }
+//         );
+//         return res.status(200).json({
+//           message: `Logged in successfully`,
+//           data: {
+//             ...user,
+//             token,
+//           },
+//         });
+//       } else {
+//         return res.status(400).json({
+//           message: `Incorrect password`,
+//         });
+//       }
+//     }
+//   } catch (error: any) {
+//     return res.status(500).json({
+//       message: `Error occured validating password`,
+//       data: error?.message,
+//     });
+//   }
+// };
 const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.params;
@@ -135,26 +178,61 @@ const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 message: `Account does not exist`,
             });
         }
-        if (user) {
-            const check = yield bcryptjs_1.default.compare(password, (user === null || user === void 0 ? void 0 : user.password) || "");
-            if (check) {
-                // Generate JWT token
-                const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email }, process.env.JWT, { expiresIn: "24h" });
-                return res.status(200).json({
-                    message: `Logged in successfully`,
-                    data: Object.assign(Object.assign({}, user), { token }),
+        const MAX_ATTEMPTS = 5;
+        const LOCK_DURATION_MINUTES = 5;
+        // Check if account is locked
+        if (user.loginLockedUntil && (0, date_fns_1.isBefore)(new Date(), user.loginLockedUntil)) {
+            const minutesLeft = Math.ceil((user.loginLockedUntil.getTime() - Date.now()) / 60000);
+            return res.status(403).json({
+                message: `Account is locked. Try again in ${minutesLeft} minute(s).`,
+            });
+        }
+        const isPasswordCorrect = yield bcryptjs_1.default.compare(password, user.password || "");
+        if (isPasswordCorrect) {
+            // Reset loginAttempts and lock time on success
+            yield prisma.user.update({
+                where: { email },
+                data: {
+                    loginAttempts: 0,
+                    loginLockedUntil: null,
+                },
+            });
+            const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email }, process.env.JWT, { expiresIn: "24h" });
+            return res.status(200).json({
+                message: `Logged in successfully`,
+                data: Object.assign(Object.assign({}, user), { token }),
+            });
+        }
+        else {
+            const updatedUser = yield prisma.user.update({
+                where: { email },
+                data: {
+                    loginAttempts: {
+                        increment: 1,
+                    },
+                },
+            });
+            if (updatedUser.loginAttempts >= MAX_ATTEMPTS) {
+                const lockUntil = (0, date_fns_1.addMinutes)(new Date(), LOCK_DURATION_MINUTES);
+                yield prisma.user.update({
+                    where: { email },
+                    data: {
+                        loginLockedUntil: lockUntil,
+                    },
+                });
+                return res.status(403).json({
+                    message: `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`,
                 });
             }
-            else {
-                return res.status(400).json({
-                    message: `Incorrect password`,
-                });
-            }
+            const remaining = MAX_ATTEMPTS - updatedUser.loginAttempts;
+            return res.status(400).json({
+                message: `Incorrect password. ${remaining} attempt(s) remaining.`,
+            });
         }
     }
     catch (error) {
         return res.status(500).json({
-            message: `Error occured validating password`,
+            message: `Error occurred validating password`,
             data: error === null || error === void 0 ? void 0 : error.message,
         });
     }

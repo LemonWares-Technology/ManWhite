@@ -116,7 +116,7 @@ const sendVerification = (user) => __awaiter(void 0, void 0, void 0, function* (
       <!-- Button -->
       <div style="text-align: center">
         <a
-          href="https://manwhitareos.onrender.com/verify/${user.id}"
+          href="https://manwhit.lemonwares.com.ng/verify/${user.id}"
           target="_blank"
           style="
             display: inline-block;

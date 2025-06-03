@@ -13,7 +13,7 @@ router.route("/:id/create-password").patch(authController_1.createPassword);
 // Email part for login
 router.route("/login").post(authController_1.loginAccount);
 // Authenticating if the password inputed matches the email account's details
-router.route("/:email/check-password").post(authController_1.checkPassword);
+router.route("/:email/check-password").post(authController_1.checkPassword); //Tested and working perfectly
 // Reseting the password
 router.route("/reset-password").post(authController_1.resetPassword);
 // Creating new password
