@@ -4,7 +4,7 @@ import "dotenv/config"; // Add this at the top
 
 const app = express();
 
-const port: number = parseInt(process.env.PORT!) || 5770;
+const port: number = parseInt(process.env.PORT!) || 5000;
 
 mainApp(app);
 const server = app.listen(port, () => {
