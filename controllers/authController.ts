@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import { sendResetPassword, sendVerification } from "../config/emailServices";
 import jwt from "jsonwebtoken";
+import { addMinutes, isBefore } from "date-fns";
 
 const prisma = new PrismaClient();
 
@@ -124,6 +125,54 @@ export const loginAccount = async (
   }
 };
 
+// export const checkPassword = async (
+//   req: Request,
+//   res: Response
+// ): Promise<any> => {
+//   try {
+//     const { email } = req.params;
+//     const { password } = req.body;
+
+//     const user = await prisma.user.findUnique({ where: { email } });
+
+//     if (!user) {
+//       return res.status(404).json({
+//         message: `Account does not exist`,
+//       });
+//     }
+
+//     if (user) {
+//       const check = await bcryptjs.compare(password, user?.password || "");
+
+//       if (check) {
+//         // Generate JWT token
+//         const token = jwt.sign(
+//           { id: user.id, email: user.email },
+//           process.env.JWT as string,
+//           { expiresIn: "24h" }
+//         );
+
+//         return res.status(200).json({
+//           message: `Logged in successfully`,
+//           data: {
+//             ...user,
+//             token,
+//           },
+//         });
+//       } else {
+//         return res.status(400).json({
+//           message: `Incorrect password`,
+//         });
+//       }
+//     }
+//   } catch (error: any) {
+//     return res.status(500).json({
+//       message: `Error occured validating password`,
+//       data: error?.message,
+//     });
+//   }
+// };
+
 export const checkPassword = async (
   req: Request,
   res: Response
@@ -140,33 +189,80 @@ export const checkPassword = async (
       });
     }
 
-    if (user) {
-      const check = await bcryptjs.compare(password, user?.password || "");
+    const MAX_ATTEMPTS = 5;
+    const LOCK_DURATION_MINUTES = 5;
 
-      if (check) {
-        // Generate JWT token
-        const token = jwt.sign(
-          { id: user.id, email: user.email },
-          process.env.JWT as string,
-          { expiresIn: "24h" }
-        );
+    // Check if account is locked
+    if (user.loginLockedUntil && isBefore(new Date(), user.loginLockedUntil)) {
+      const minutesLeft = Math.ceil(
+        (user.loginLockedUntil.getTime() - Date.now()) / 60000
+      );
+      return res.status(403).json({
+        message: `Account is locked. Try again in ${minutesLeft} minute(s).`,
+      });
+    }
 
-        return res.status(200).json({
-          message: `Logged in successfully`,
+    const isPasswordCorrect = await bcryptjs.compare(
+      password,
+      user.password || ""
+    );
+
+    if (isPasswordCorrect) {
+      // Reset loginAttempts and lock time on success
+      await prisma.user.update({
+        where: { email },
+        data: {
+          loginAttempts: 0,
+          loginLockedUntil: null,
+        },
+      });
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT as string,
+        { expiresIn: "24h" }
+      );
+
+      return res.status(200).json({
+        message: `Logged in successfully`,
+        data: {
+          ...user,
+          token,
+        },
+      });
+    } else {
+      const updatedUser = await prisma.user.update({
+        where: { email },
+        data: {
+          loginAttempts: {
+            increment: 1,
+          },
+        },
+      });
+
+      if (updatedUser.loginAttempts >= MAX_ATTEMPTS) {
+        const lockUntil = addMinutes(new Date(), LOCK_DURATION_MINUTES);
+
+        await prisma.user.update({
+          where: { email },
           data: {
-            ...user,
-            token,
+            loginLockedUntil: lockUntil,
           },
         });
-      } else {
-        return res.status(400).json({
-          message: `Incorrect password`,
+
+        return res.status(403).json({
+          message: `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`,
         });
       }
+
+      const remaining = MAX_ATTEMPTS - updatedUser.loginAttempts;
+      return res.status(400).json({
+        message: `Incorrect password. ${remaining} attempt(s) remaining.`,
+      });
     }
   } catch (error: any) {
     return res.status(500).json({
-      message: `Error occured validating password`,
+      message: `Error occurred validating password`,
       data: error?.message,
     });
   }

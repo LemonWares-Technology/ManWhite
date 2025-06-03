@@ -1,4 +1,3 @@
-import { Response } from "express";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
 import env from "dotenv";
@@ -111,7 +110,7 @@ export const sendVerification = async (user: any) => {
       <!-- Button -->
       <div style="text-align: center">
         <a
-          href="https://manwhitareos.onrender.com/verify/${user.id}"
+          href="https://manwhit.lemonwares.com.ng/verify/${user.id}"
           target="_blank"
           style="
             display: inline-block;

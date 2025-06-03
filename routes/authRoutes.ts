@@ -23,7 +23,7 @@ router.route("/:id/create-password").patch(createPassword);
 router.route("/login").post(loginAccount);
 
 // Authenticating if the password inputed matches the email account's details
-router.route("/:email/check-password").post(checkPassword);
+router.route("/:email/check-password").post(checkPassword); //Tested and working perfectly
 
 // Reseting the password
 router.route("/reset-password").post(resetPassword);
@@ -39,7 +39,6 @@ router.route("/users").get(getAllAccounts);
 
 //Updating user's details
 router.route("/:id/update-details").patch(updateuserAccountDetails);
-
 
 //updating traveler details
 router.route("/traveler").post(createTraveler);

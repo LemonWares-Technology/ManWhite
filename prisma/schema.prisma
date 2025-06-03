@@ -9,20 +9,21 @@ datasource db {
 }
 
 model User {
-  id                        String  @id @default(uuid())
-  email                     String  @unique
+  id                        String    @id @default(uuid())
+  email                     String    @unique
   password                  String? // Make password optional for social login users
   firstName                 String?
   lastName                  String?
-  googleId                  String? @unique // Store Google's unique ID
+  googleId                  String?   @unique // Store Google's unique ID
   avatarUrl                 String? // Profile picture from Google
-  verified                  Boolean @default(false)
+  verified                  Boolean   @default(false)
   verificationCode          String?
   verificationCodeExpiresIn String?
   recoveryCode              String?
   refreshToken              String?
   recoveryCodeExpiresIn     String?
-  loginAttempts             Int     @default(0)
+  loginAttempts             Int       @default(0)
+  loginLockedUntil          DateTime?
 
   phone                     String?
   gender                    String?

@@ -36,6 +36,35 @@ export async function createMargin(req: Request, res: Response): Promise<any> {
   }
 }
 
+export async function getAllMargins(req: Request, res: Response): Promise<any> {
+  try {
+    const margins = await prisma.marginSetting.findMany();
+    return res.status(200).json({ margins });
+  } catch (error: any) {
+    console.error("Error fetching margins:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+export async function getMarginById(req: Request, res: Response): Promise<any> {
+  try {
+    const { marginId } = req.params;
+
+    const margin = await prisma.marginSetting.findUnique({
+      where: { id: marginId },
+    });
+
+    if (!margin) {
+      return res.status(404).json({ error: "Margin not found" });
+    }
+
+    return res.status(200).json({ margin });
+  } catch (error: any) {
+    console.error("Error fetching margin:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 /**
  * Update the existing margin setting
  */

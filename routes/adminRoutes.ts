@@ -20,6 +20,8 @@ import {
   updateFlightAddon,
   deleteFlightAddon,
   getAllFlightAddons,
+  updateUserByAdmin,
+  deleteUserByAdmin,
 } from "../controllers/adminController";
 
 const router = Router();
@@ -28,6 +30,8 @@ router.route("/create").post(createAdminAccount); // Tested and working perfectl
 router.route("/login").post(adminLogin); // Tested and working perfectly
 router.route("/create-agent/:adminId").post(createAgent); // Tested and working perfectly
 router.route("/create-user/:adminId").post(createUserByAdmin); // Tested and working perfectly
+router.route("/update-user/:adminId/:userId").patch(updateUserByAdmin); //Tested and working perfectly
+router.route("/delete-user/:adminId/:userId").delete(deleteUserByAdmin); //Tested and working perfectly
 router.route("/verify-agent/:agentId").patch(verifyAgent); // Tested and working perfectly
 router.route("/setup-profile").patch(agentSetupProfile); // Tested and working perfectly
 router.route("/agent-login").post(loginAgent); // Tested and working perfectly
