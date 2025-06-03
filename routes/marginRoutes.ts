@@ -8,7 +8,7 @@ import {
 } from "../controllers/marginController";
 
 const router = express.Router();
-router.route("/create-margin").post(createMargin); // Working
+router.route("/create-margin").post(createMargin); // Tested and Working
 router.route("/get-margins").get(getAllMargins); //Tested and Working Perectly
 router.route("/get-margin/:marginId").get(getMarginById); //Tested and working perfectly
 router.route("/create-margin").post(createMargin); // Working
