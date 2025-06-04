@@ -7,7 +7,7 @@ const express_1 = __importDefault(require("express"));
 const mainApp_1 = require("./mainApp");
 require("dotenv/config"); // Add this at the top
 const app = (0, express_1.default)();
-const port = parseInt(process.env.PORT) || 5770;
+const port = parseInt(process.env.PORT) || 5000;
 (0, mainApp_1.mainApp)(app);
 const server = app.listen(port, () => {
     console.log(`❤️  ❤️`);
