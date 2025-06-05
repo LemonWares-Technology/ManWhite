@@ -10,20 +10,52 @@ const baseURL: string = "https://test.api.amadeus.com";
 const prisma = new PrismaClient();
 
 export async function searchFlights(req: Request, res: Response): Promise<any> {
-  const { origin, destination, adults, departureDate } = req.query;
-
-  if (!origin || !destination || !adults || !departureDate) {
-    return res.status(400).json({ error: "Missing required field(s)" });
-  }
-
-  const adultsNum = Number(adults);
-  if (isNaN(adultsNum) || adultsNum < 1) {
-    return res.status(400).json({ error: "Invalid 'adults' parameter" });
-  }
+  const { origin, destination, adults, departureDate, keyword } = req.query;
 
   try {
     const token = await getAmadeusToken();
 
+    // If keyword is provided, return location suggestions
+    if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {
+      const { data }: any = await axios.get(
+        `${baseURL}/v1/reference-data/locations`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          params: {
+            subType: "CITY,AIRPORT",
+            keyword,
+          },
+        }
+      );
+
+      const suggestions = data.data.map((item: any) => ({
+        name: item.name,
+        iataCode: item.iataCode,
+        cityCode: item.cityCode,
+        countryName: item.countryName,
+        stateCode: item.stateCode,
+        regionCode: item.regionCode,
+      }));
+
+      return res.json(suggestions);
+    }
+
+    // For flight search, validate required fields
+    if (!origin || !destination || !adults || !departureDate) {
+      return res.status(400).json({
+        error:
+          "Missing required field(s): origin, destination, adults, departureDate",
+      });
+    }
+
+    const adultsNum = Number(adults);
+    if (isNaN(adultsNum) || adultsNum < 1) {
+      return res.status(400).json({ error: "Invalid 'adults' parameter" });
+    }
+
+    // Get IATA codes for origin and destination
     const originIata = await getCachedIataCode(origin as string, token);
     const destinationIata = await getCachedIataCode(
       destination as string,
@@ -36,6 +68,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
         .json({ error: "Could not find IATA code for origin or destination" });
     }
 
+    // Get excluded airlines from your database
     const excludedAirlines = await prisma.excludedAirline.findMany();
     const excludedCodesArray = excludedAirlines
       .map((a: any) => a.airlineCode?.trim())
@@ -58,12 +91,13 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       `${baseURL}/v2/shopping/flight-offers`,
       {
         headers: { Authorization: `Bearer ${token}` },
-        params: params,
+        params,
       }
     );
 
     const offers = response.data.data;
 
+    // Apply margin from your settings
     const marginSetting = await prisma.marginSetting.findFirst();
     const percent = marginSetting?.amount || 0;
 
@@ -80,6 +114,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       };
     });
 
+    // Enrich segments with location details
     for (const offer of adjustedOffers) {
       for (const itinerary of offer.itineraries) {
         for (const segment of itinerary.segments) {
@@ -113,7 +148,9 @@ export async function searchFlightPrice(
     const { flightOffer } = req.body;
 
     if (!flightOffer) {
-      return res.status(400).json({ error: "Missing flight offer in request body" });
+      return res
+        .status(400)
+        .json({ error: "Missing flight offer in request body" });
     }
 
     const token = await getAmadeusToken();
@@ -198,7 +235,10 @@ export async function searchFlightPrice(
       },
     });
   } catch (error: any) {
-    console.error("Flight pricing error:", error.response?.data || error.message);
+    console.error(
+      "Flight pricing error:",
+      error.response?.data || error.message
+    );
     return res.status(500).json({
       error: "Failed to fetch flight pricing",
       details: error.response?.data || error.message,
