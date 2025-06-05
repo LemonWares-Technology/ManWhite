@@ -205,3 +205,35 @@ enum Status {
   CANCELED
   REFUNDED
 }
+
+model Hotel {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  address     String
+  city        String
+  country     String
+  phone       String?
+  email       String?
+  website     String?
+  rating      Float?
+  price       Float?
+  currency    String   @default("USD")
+  images      String[] // Array of image URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tour {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  location        String
+  price           Float
+  currency        String   @default("USD")
+  maxParticipants Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
