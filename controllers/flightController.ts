@@ -10,7 +10,7 @@ const baseURL: string = "https://test.api.amadeus.com";
 const prisma = new PrismaClient();
 
 export async function searchFlights(req: Request, res: Response): Promise<any> {
-  const { origin, destination, adults, departureDate } = req.query;
+  const { origin, destination, adults, departureDate, keyword } = req.query;
 
   if (!origin || !destination || !adults || !departureDate) {
     return res.status(400).json({ error: "Missing required field(s)" });
