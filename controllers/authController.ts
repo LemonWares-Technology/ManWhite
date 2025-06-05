@@ -40,7 +40,7 @@ export const createAccount = async (
       },
     });
 
-    await sendVerification(newUser);
+    // await sendVerification(newUser);
 
     const { password: _, ...hidePassword } = newUser;
 

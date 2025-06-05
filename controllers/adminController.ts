@@ -538,6 +538,7 @@ export async function getAllBookings(
         },
         travelers: true, // Include all traveler fields
         review: true, // Include review if exists
+        FlightAddon: true,
       },
     });
 
