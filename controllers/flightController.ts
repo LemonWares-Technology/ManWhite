@@ -439,6 +439,202 @@ export async function updateFlightStatus(
   }
 }
 
+// export async function bookFlightWithOptionalAddons(
+//   req: Request,
+//   res: Response
+// ): Promise<any> {
+//   const {
+//     flightOffer,
+//     travelers,
+//     addonIds = [],
+//     userId,
+//     guestUserId,
+//   } = req.body;
+
+//   try {
+//     if (!flightOffer || !travelers) {
+//       return res.status(400).json({
+//         error: "Missing required fields: flightOffer or travelers",
+//       });
+//     }
+
+//     const token = await getAmadeusToken();
+
+//     // Prepare Amadeus booking payload
+//     const payload = {
+//       data: {
+//         type: "flight-order",
+//         flightOffers: [flightOffer],
+//         travelers: travelers.map((t: any) => ({
+//           id: t.id,
+//           dateOfBirth: t.dateOfBirth,
+//           name: {
+//             firstName: t.name.firstName,
+//             lastName: t.name.lastName,
+//           },
+//           gender: t.gender,
+//           contact: {
+//             emailAddress: t.contact.emailAddress,
+//             phones: t.contact.phones,
+//           },
+//           documents: t.documents.map((doc: any) => ({
+//             number: doc.passportNumber || doc.number,
+//             documentType: doc.documentType || "PASSPORT",
+//             issuanceCountry: doc.issuanceCountry,
+//             issuanceLocation: doc.issuanceLocation,
+//             issuanceDate: doc.issuanceDate,
+//             holder: true,
+//             expiryDate: doc.expiryDate,
+//             validityCountry: doc.validityCountry,
+//             nationality: doc.nationality,
+//             birthPlace: doc.birthPlace,
+//           })),
+//         })),
+//         holder: {
+//           name: {
+//             firstName: travelers[0].name.firstName,
+//             lastName: travelers[0].name.lastName,
+//           },
+//         },
+//       },
+//     };
+
+//     // Book flight on Amadeus
+//     const response: any = await axios.post(
+//       `${baseURL}/v1/booking/flight-orders`,
+//       payload,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//           "Content-Type": "application/json",
+//         },
+//       }
+//     );
+//     const amadeusBooking: any = response.data;
+
+//     // Margin
+//     const marginSetting: any = await prisma.marginSetting.findFirst({
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     console.log(`Margin settings:`, marginSetting);
+
+//     if (!marginSetting) {
+//       return res.status(500).json({ error: "Margin setting not configured" });
+//     }
+//     const marginPercentage = marginSetting?.amount;
+
+//     // Extract base price from the first flight offer (assuming at least one)
+//     const flightOffers = amadeusBooking?.data?.flightOffers || [];
+//     if (flightOffers.length === 0) {
+//       return res
+//         .status(500)
+//         .json({ error: "No flight offers found in Amadeus response" });
+//     }
+//     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+
+//     // Apply margin to base price (if needed)
+//     const marginAdded = (marginPercentage / 100) * basePriceNGN;
+//     const originalTotalAmount = basePriceNGN + marginAdded;
+
+//     // Get conversion rate for addons (USD -> NGN)
+//     const conversionRate = await getConversionRate("USD", "NGN");
+
+//     // Fetch addons and convert prices from USD to NGN
+//     let addons: any[] = [];
+//     let addonTotalNGN = 0;
+
+//     if (addonIds.length > 0) {
+//       addons = await prisma.flightAddon.findMany({
+//         where: { id: { in: addonIds } },
+//       });
+
+//       addonTotalNGN = addons.reduce((sum, addon) => {
+//         const priceInUsd = addon.price;
+//         const priceInNgn = priceInUsd * conversionRate;
+//         return sum + priceInNgn;
+//       }, 0);
+//     }
+
+//     // Calculate grand total (base + margin + addons)
+//     const totalAmountNGN = originalTotalAmount + addonTotalNGN;
+
+//     // Save booking with converted addon prices
+//     const booking = await prisma.booking.create({
+//       data: {
+//         userId,
+//         guestUserId,
+//         referenceId: amadeusBooking.data.id,
+//         type: "FLIGHT",
+//         status: "CONFIRMED",
+//         verified: true,
+//         apiProvider: "AMADEUS",
+//         apiReferenceId: amadeusBooking.data.id,
+//         apiResponse: amadeusBooking,
+//         bookingDetails: flightOffer,
+//         totalAmount: +totalAmountNGN.toFixed(2),
+//         currency: "NGN",
+//         locationDetails: {},
+//         airlineDetails: {},
+//         FlightAddon: {
+//           create: addons.map((addon) => ({
+//             type: addon.type,
+//             name: addon.name,
+//             description: addon.description,
+//             price: +(addon.price * conversionRate).toFixed(2),
+//             currency: "NGN",
+//           })),
+//         },
+//       },
+//       include: { FlightAddon: true },
+//     });
+
+//     // Save travelers
+//     for (const t of travelers) {
+//       await prisma.traveler.create({
+//         data: {
+//           bookingId: booking.id,
+//           firstName: t.name.firstName,
+//           lastName: t.name.lastName,
+//           dateOfBirth: new Date(t.dateOfBirth),
+//           gender: t.gender,
+//           email: t.contact.emailAddress,
+//           phone: t.contact.phones?.[0]?.number,
+//           countryCode: t.contact.phones?.[0]?.countryCallingCode,
+//           passportNumber: t.documents?.[0]?.number,
+//           passportExpiry: t.documents?.[0]?.expiryDate
+//             ? new Date(t.documents[0].expiryDate)
+//             : undefined,
+//           nationality: t.documents?.[0]?.nationality,
+//         },
+//       });
+//     }
+
+//     // Debug logs
+//     console.log("Base price (NGN):", basePriceNGN);
+//     console.log("Margin added (NGN):", marginAdded);
+//     console.log("Addon total (NGN):", addonTotalNGN);
+//     console.log("Total amount (NGN):", totalAmountNGN);
+
+//     return res.status(201).json({
+//       success: true,
+//       message: "Flight successfully booked with addons",
+//       booking,
+//       amadeus: amadeusBooking,
+//       originalTotalAmount: +originalTotalAmount.toFixed(2), // base + margin
+//       addonTotal: +addonTotalNGN.toFixed(2),
+//       totalAmount: +totalAmountNGN.toFixed(2),
+//     });
+//   } catch (error: any) {
+//     console.error("Booking Error:", error.response?.data || error.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Flight booking failed",
+//       error: error.response?.data || error.message,
+//     });
+//   }
+// }
+
 export async function bookFlightWithOptionalAddons(
   req: Request,
   res: Response
@@ -452,13 +648,23 @@ export async function bookFlightWithOptionalAddons(
   } = req.body;
 
   try {
+    console.log("Received booking request with:", {
+      flightOfferExists: !!flightOffer,
+      travelersCount: travelers?.length || 0,
+      addonIds,
+      userId,
+      guestUserId,
+    });
+
     if (!flightOffer || !travelers) {
+      console.error("Missing required fields: flightOffer or travelers");
       return res.status(400).json({
         error: "Missing required fields: flightOffer or travelers",
       });
     }
 
     const token = await getAmadeusToken();
+    console.log("Amadeus token obtained");
 
     // Prepare Amadeus booking payload
     const payload = {
@@ -511,36 +717,42 @@ export async function bookFlightWithOptionalAddons(
       }
     );
     const amadeusBooking: any = response.data;
+    console.log("Flight booked on Amadeus:", amadeusBooking.data.id);
 
-    // Margin
+    // Margin settings
     const marginSetting: any = await prisma.marginSetting.findFirst({
       orderBy: { createdAt: "desc" },
     });
-
-    console.log(`Margin settings:`, marginSetting);
+    console.log("Margin settings fetched:", marginSetting);
 
     if (!marginSetting) {
+      console.error("Margin setting not configured");
       return res.status(500).json({ error: "Margin setting not configured" });
     }
-    const marginPercentage = marginSetting?.amount;
+    const marginPercentage = marginSetting.amount;
 
-    // Extract base price from the first flight offer (assuming at least one)
+    // Extract base price from Amadeus response
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
     if (flightOffers.length === 0) {
+      console.error("No flight offers found in Amadeus response");
       return res
         .status(500)
         .json({ error: "No flight offers found in Amadeus response" });
     }
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+    console.log("Base price (NGN):", basePriceNGN);
 
-    // Apply margin to base price (if needed)
+    // Calculate margin and total
     const marginAdded = (marginPercentage / 100) * basePriceNGN;
     const originalTotalAmount = basePriceNGN + marginAdded;
+    console.log("Margin added (NGN):", marginAdded);
+    console.log("Original total amount (base + margin):", originalTotalAmount);
 
-    // Get conversion rate for addons (USD -> NGN)
+    // Get conversion rate USD -> NGN for addons
     const conversionRate = await getConversionRate("USD", "NGN");
+    console.log("Conversion rate USD->NGN:", conversionRate);
 
-    // Fetch addons and convert prices from USD to NGN
+    // Fetch addons and calculate total addon price in NGN
     let addons: any[] = [];
     let addonTotalNGN = 0;
 
@@ -548,18 +760,31 @@ export async function bookFlightWithOptionalAddons(
       addons = await prisma.flightAddon.findMany({
         where: { id: { in: addonIds } },
       });
+      console.log(`Fetched ${addons.length} addons from DB for addonIds`);
+
+      if (addons.length !== addonIds.length) {
+        console.error("One or more addonIds are invalid");
+        return res.status(400).json({
+          success: false,
+          message: "One or more addonIds are invalid",
+        });
+      }
 
       addonTotalNGN = addons.reduce((sum, addon) => {
         const priceInUsd = addon.price;
         const priceInNgn = priceInUsd * conversionRate;
         return sum + priceInNgn;
       }, 0);
+      console.log("Total addons price (NGN):", addonTotalNGN);
+    } else {
+      console.log("No addons selected");
     }
 
-    // Calculate grand total (base + margin + addons)
+    // Calculate grand total amount including addons
     const totalAmountNGN = originalTotalAmount + addonTotalNGN;
+    console.log("Grand total amount (NGN):", totalAmountNGN);
 
-    // Save booking with converted addon prices
+    // Step 1: Create booking (without addons)
     const booking = await prisma.booking.create({
       data: {
         userId,
@@ -576,22 +801,28 @@ export async function bookFlightWithOptionalAddons(
         currency: "NGN",
         locationDetails: {},
         airlineDetails: {},
-        FlightAddon: {
-          create: addons.map((addon) => ({
-            type: addon.type,
-            name: addon.name,
-            description: addon.description,
-            price: +(addon.price * conversionRate).toFixed(2),
-            currency: "NGN",
-          })),
-        },
       },
-      include: { FlightAddon: true },
     });
+    console.log("Booking created with ID:", booking.id);
 
-    // Save travelers
+    // Step 2: Link existing addons to booking by updating bookingId
+    if (addonIds.length > 0) {
+      const updateResult = await prisma.flightAddon.updateMany({
+        where: { id: { in: addonIds } },
+        data: { bookingId: booking.id },
+      });
+      console.log(`Updated ${updateResult.count} addons to link bookingId`);
+
+      // Confirm linked addons
+      const linkedAddons = await prisma.flightAddon.findMany({
+        where: { bookingId: booking.id },
+      });
+      console.log("Linked addons after update:", linkedAddons);
+    }
+
+    // Step 3: Save travelers linked to booking
     for (const t of travelers) {
-      await prisma.traveler.create({
+      const traveler = await prisma.traveler.create({
         data: {
           bookingId: booking.id,
           firstName: t.name.firstName,
@@ -608,18 +839,20 @@ export async function bookFlightWithOptionalAddons(
           nationality: t.documents?.[0]?.nationality,
         },
       });
+      console.log(`Traveler saved: ${traveler.firstName} ${traveler.lastName}`);
     }
 
-    // Debug logs
-    console.log("Base price (NGN):", basePriceNGN);
-    console.log("Margin added (NGN):", marginAdded);
-    console.log("Addon total (NGN):", addonTotalNGN);
-    console.log("Total amount (NGN):", totalAmountNGN);
+    // Step 4: Fetch booking with addons included
+    const bookingWithAddons = await prisma.booking.findUnique({
+      where: { id: booking.id },
+      include: { FlightAddon: true },
+    });
+    console.log("Final booking with addons fetched:", bookingWithAddons);
 
     return res.status(201).json({
       success: true,
       message: "Flight successfully booked with addons",
-      booking,
+      booking: bookingWithAddons,
       amadeus: amadeusBooking,
       originalTotalAmount: +originalTotalAmount.toFixed(2), // base + margin
       addonTotal: +addonTotalNGN.toFixed(2),
@@ -634,3 +867,4 @@ export async function bookFlightWithOptionalAddons(
     });
   }
 }
+

@@ -1,10 +1,11 @@
-import { PrismaClient, Role } from "@prisma/client";
+import nodemailer from "nodemailer";
+import { EmailStatus, PrismaClient, Role } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
-import env from "dotenv";
 import { sendToken } from "../config/emailServices";
+import env from "dotenv";
 env.config();
 
 const ADMIN_SECRET = process.env.JWT! || "code";
@@ -771,11 +772,10 @@ export async function deleteExclusion(
 // Create Addons
 export const createFlightAddon = async (req: Request, res: Response) => {
   try {
-    const { type, name, description, price } = req.body;
+    const { name, description, price } = req.body;
 
     const addon = await prisma.flightAddon.create({
       data: {
-        type,
         name,
         description,
         price,
@@ -810,12 +810,12 @@ export const getAllFlightAddons = async (_req: Request, res: Response) => {
 // Update addon
 export const updateFlightAddon = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { type, name, description, price, currency } = req.body;
+  const { name, description, price, currency } = req.body;
 
   try {
     const addon = await prisma.flightAddon.update({
       where: { id },
-      data: { type, name, description, price, currency },
+      data: { name, description, price, currency },
     });
 
     res.status(200).json({ success: true, addon });

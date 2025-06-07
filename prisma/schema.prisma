@@ -41,6 +41,7 @@ model User {
   createdAt                 DateTime      @default(now())
   updatedAt                 DateTime      @updatedAt
   AccessToken               AccessToken[]
+  AdminEmail                AdminEmail[]
 }
 
 model AccessToken {
@@ -104,6 +105,7 @@ model Booking {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   FlightAddon FlightAddon[] @relation("BookingAddons")
+  AdminEmail  AdminEmail[]
 
   @@index([userId])
   @@index([guestUserId])
@@ -172,7 +174,6 @@ model FlightAddon {
   id          String   @id @default(uuid())
   bookingId   String?
   booking     Booking? @relation("BookingAddons", fields: [bookingId], references: [id], onDelete: Cascade)
-  type        String
   name        String
   description String?
   price       Float
@@ -236,4 +237,24 @@ model Tour {
   maxParticipants Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model AdminEmail {
+  id        String      @id @default(uuid())
+  adminId   String
+  admin     User?       @relation(fields: [adminId], references: [id])
+  bookingId String?
+  booking   Booking?    @relation(fields: [bookingId], references: [id])
+  recipient String?
+  subject   String
+  message   String
+  sentAt    DateTime    @default(now())
+  status    EmailStatus @default(SENT)
+  error     String?
+}
+
+enum EmailStatus {
+  PENDING
+  FAILED
+  SENT
 }

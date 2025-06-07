@@ -47,6 +47,9 @@ router.route("/delete-code/:iataCode").delete(deleteExclusion); // Working
 router.route("/create-addons/:adminId").post(createFlightAddon);
 router.route("/get-addons").get(getAllFlightAddons);
 router.route("/update-addons").patch(updateFlightAddon);
-router.route("/delete-addons").delete(deleteFlightAddon);
+router.route("/delete-addons/:id").delete(deleteFlightAddon);
+
+/// Sending emails
+
 
 export default router;
