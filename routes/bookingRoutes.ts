@@ -17,5 +17,10 @@ router.route("/cart/:userId", ).get(getUserCart);
 router
   .route("/remove-from-cart/:cartId")
   .delete( removeFlightFromCart);
+router.route("/book-flight/:userId/:transactionId").post(bookUserFlight);
+// authenticateToken,
+router.route("/add-to-cart/:userId").post(addFlightToCart);
+router.route("/remove-from-cart/:cartId").delete(removeFlightFromCart);
+router.route("/cart/:userId").get(getUserCart);
 // authenticateToken,
 export default router;

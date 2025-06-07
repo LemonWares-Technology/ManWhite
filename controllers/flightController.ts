@@ -246,6 +246,35 @@ export async function searchFlightPrice(
   }
 }
 
+export const saveSelectedFlightOffer = async (
+  req: Request,
+  res: Response
+): Promise<Response | any> => {
+  try {
+    const { offerData } = req.body;
+
+    if (!offerData) {
+      return res.status(400).json({ message: "Missing offer data" });
+    }
+
+    const savedOffer = await prisma.flightOffer.create({
+      data: {
+        offerData,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Flight offer saved successfully",
+      flightOfferId: savedOffer.id,
+    });
+  } catch (error: any) {
+    console.error("Error saving flight offer:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
+  }
+};
+
 export async function retrieveFlightDetails(
   req: Request,
   res: Response

@@ -9,11 +9,13 @@ import {
   getOneFlightDetails,
   updateFlightStatus,
   bookFlightWithOptionalAddons,
+  saveSelectedFlightOffer,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
 
 const router = express.Router();
 router.route("/search").get(searchFlights); // Working
+router.route("/save-flight-offer").post(saveSelectedFlightOffer); // Working
 router.route("/search-flight-price").post(searchFlightPrice); //Working
 router.route("/book-flight").post(bookFlightWithOptionalAddons); // Working
 router.route("/get-flight-details/:referenceId").get(retrieveFlightDetails); // Working

@@ -455,10 +455,10 @@ export const updateuserAccountDetails = async (
 export const createTraveler = async (
   req: Request,
   res: Response
-): Promise<any> => {
+): Promise<Response | any> => {
   try {
     const {
-      bookingId,
+      flightOfferId,
       firstName,
       lastName,
       dateOfBirth,
@@ -476,22 +476,19 @@ export const createTraveler = async (
       issuanceLocation,
     } = req.body;
 
-    // // Validate required fields
-    // if (
-    //   !bookingId ||
-    //   !firstName ||
-    //   !lastName ||
-    //   !dateOfBirth ||
-    //   !gender ||
-    //   !email ||
-    //   !phone
-    // ) {
-    //   return res.status(400).json({ message: "Missing required traveler details" });
-    // }
+    // Validate flight offer exists if provided
+    if (flightOfferId) {
+      const exists = await prisma.flightOffer.findUnique({
+        where: { id: flightOfferId },
+      });
+      if (!exists) {
+        return res.status(400).json({ message: "Invalid flightOfferId" });
+      }
+    }
 
     const newTraveler = await prisma.traveler.create({
       data: {
-        bookingId,
+        flightOfferId,
         firstName,
         lastName,
         dateOfBirth: new Date(dateOfBirth),
@@ -516,9 +513,8 @@ export const createTraveler = async (
     });
   } catch (error: any) {
     console.error("Error creating traveler:", error);
-    return res.status(500).json({
-      message: "Error creating traveler",
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };
