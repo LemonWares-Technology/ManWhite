@@ -154,37 +154,37 @@ export const removeFlightFromCart = async (
   }
 };
 
-export const getUserCart = async (
-  req: Request,
-  res: Response
-): Promise<any> => {
-  const { userId } = req.params;
+// export const getUserCart = async (
+//   req: Request,
+//   res: Response
+// ): Promise<any> => {
+//   const { userId } = req.params;
 
-  try {
-    // Optional: Check if user exists (uncomment if needed)
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+//   try {
+//     // Optional: Check if user exists (uncomment if needed)
+//     const user = await prisma.user.findUnique({ where: { id: userId } });
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
 
-    // Get all cart items for the user, ordered by creation date (latest first)
-    const cartItems = await prisma.flightCart.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
+//     // Get all cart items for the user, ordered by creation date (latest first)
+//     const cartItems = await prisma.flightCart.findMany({
+//       where: { userId },
+//       orderBy: { createdAt: "desc" },
+//     });
 
-    return res.status(200).json({
-      message: "User cart fetched successfully",
-      data: cartItems,
-    });
-  } catch (error: any) {
-    console.error("Error fetching user cart:", error);
-    return res.status(500).json({
-      message: "Error occurred while fetching user cart",
-      error: error.message,
-    });
-  }
-};
+//     return res.status(200).json({
+//       message: "User cart fetched successfully",
+//       data: cartItems,
+//     });
+//   } catch (error: any) {
+//     console.error("Error fetching user cart:", error);
+//     return res.status(500).json({
+//       message: "Error occurred while fetching user cart",
+//       error: error.message,
+//     });
+//   }
+// };
 
 export const bookFlight = async (req: any, res: any): Promise<any> => {
   try {
