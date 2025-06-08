@@ -10,14 +10,22 @@ import {
   updateFlightStatus,
   bookFlightWithOptionalAddons,
   saveSelectedFlightOffer,
+  getFlightOffers,
+  getFlightOfferById,
+  bookFlightAsGuest,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
 
 const router = express.Router();
 router.route("/search").get(searchFlights); // Working
 router.route("/save-flight-offer").post(saveSelectedFlightOffer); // Working
+router.route("/get-flight-offers").get(getFlightOffers);//Working
+router.route("/get-flight-offer/:id").get(getFlightOfferById); //working
 router.route("/search-flight-price").post(searchFlightPrice); //Working
+
 router.route("/book-flight").post(bookFlightWithOptionalAddons); // Working
+router.route("/book-guest-flight").post(bookFlightAsGuest); // Working
+
 router.route("/get-flight-details/:referenceId").get(retrieveFlightDetails); // Working
 router.route("/delete-flight-details/:referenceId").delete(deleteFlightBooking); // Working
 router.route("/get-seatmaps/:referenceId").get(getSeatMapsByFlightId); // Working

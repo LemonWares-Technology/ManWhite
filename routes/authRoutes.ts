@@ -2,13 +2,21 @@ import express from "express";
 import {
   checkPassword,
   createAccount,
+  createGuestUser,
   createNewPassword,
   createPassword,
   createTraveler,
   getAllAccounts,
+  getAllGuestUsers,
+  getAllTravelers,
+  getGuestUserById,
   getSingleUserAccount,
+  getTravelerById,
+  getTravelerForAmadeusBooking,
+  getTravelersForAmadeusBooking,
   loginAccount,
   resetPassword,
+  updateTravelerDetails,
   updateuserAccountDetails,
 } from "../controllers/authController";
 
@@ -42,5 +50,21 @@ router.route("/:id/update-details").patch(updateuserAccountDetails);
 
 //updating traveler details
 router.route("/traveler").post(createTraveler);
+//getting all travelers details
+router.route("/travelers").get(getAllTravelers);
+
+router.route("/traveler/:id/amadeus", ).get(getTravelerForAmadeusBooking);
+
+router.route("/travelers/amadeus").get(getTravelersForAmadeusBooking);
+
+//getting one traveler details
+router.route("/traveler/:id").get(getTravelerById);
+//updating one traveler details
+router.route("/traveler/:id").put(updateTravelerDetails);
+
+router.route("/guest-user").post(createGuestUser);
+
+router.route("/guest-users").get(getAllGuestUsers);
+router.route("/guest-user/:id").get(getGuestUserById);
 
 export default router;

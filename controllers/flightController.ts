@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import axios from "axios";
 import getAmadeusToken from "../utils/getToken";
 import { PrismaClient, Status } from "@prisma/client";
-import { getConversionRate } from "../utils/amadeusHelper";
+import {
+  getConversionRate,
+  mapTravelerToAmadeusFormat,
+} from "../utils/amadeusHelper";
 import { getCachedIataCode, getCachedLocationDetails } from "../utils/helper";
 
 const baseURL: string = "https://test.api.amadeus.com";
@@ -14,6 +17,8 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
 
   try {
     const token = await getAmadeusToken();
+
+    console.log(token);
 
     // If keyword is provided, return location suggestions
     if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {
@@ -272,6 +277,64 @@ export const saveSelectedFlightOffer = async (
     return res
       .status(500)
       .json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getFlightOffers = async (
+  req: Request,
+  res: Response
+): Promise<Response | any> => {
+  try {
+    const flightOffers = await prisma.flightOffer.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    return res.status(200).json({
+      message: "Flight offers retrieved successfully",
+      data: flightOffers,
+    });
+  } catch (error: any) {
+    console.error("Error fetching flight offers:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+export const getFlightOfferById = async (
+  req: Request,
+  res: Response
+): Promise<Response | any> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Flight offer ID is required" });
+    }
+
+    const flightOffer = await prisma.flightOffer.findUnique({
+      where: { id },
+      include: {
+        travelers: true,
+        addons: true,
+      },
+    });
+
+    if (!flightOffer) {
+      return res.status(404).json({ message: "Flight offer not found" });
+    }
+
+    return res.status(200).json({
+      message: "Flight offer retrieved successfully",
+      data: flightOffer,
+    });
+  } catch (error: any) {
+    console.error("Error fetching flight offer:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
@@ -673,7 +736,6 @@ export async function bookFlightWithOptionalAddons(
     travelers,
     addonIds = [],
     userId,
-    guestUserId,
   } = req.body;
 
   try {
@@ -682,53 +744,44 @@ export async function bookFlightWithOptionalAddons(
       travelersCount: travelers?.length || 0,
       addonIds,
       userId,
-      guestUserId,
+      travelers,
+      flightOffer,
     });
 
     if (!flightOffer || !travelers) {
-      console.error("Missing required fields: flightOffer or travelers");
       return res.status(400).json({
         error: "Missing required fields: flightOffer or travelers",
       });
     }
 
+    // Validate userId
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required for this booking endpoint." });
+    }
+    const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      return res.status(400).json({ error: "Invalid userId: user not found" });
+    }
+
+    // Transform travelers to Amadeus format if needed
+    const amadeusTravelers = travelers.map((t: any, idx: number) =>
+      t.name && t.contact && t.documents
+        ? { ...t, id: (idx + 1).toString() }
+        : mapTravelerToAmadeusFormat(t, (idx + 1).toString())
+    );
+
     const token = await getAmadeusToken();
-    console.log("Amadeus token obtained");
 
     // Prepare Amadeus booking payload
     const payload = {
       data: {
         type: "flight-order",
         flightOffers: [flightOffer],
-        travelers: travelers.map((t: any) => ({
-          id: t.id,
-          dateOfBirth: t.dateOfBirth,
-          name: {
-            firstName: t.name.firstName,
-            lastName: t.name.lastName,
-          },
-          gender: t.gender,
-          contact: {
-            emailAddress: t.contact.emailAddress,
-            phones: t.contact.phones,
-          },
-          documents: t.documents.map((doc: any) => ({
-            number: doc.passportNumber || doc.number,
-            documentType: doc.documentType || "PASSPORT",
-            issuanceCountry: doc.issuanceCountry,
-            issuanceLocation: doc.issuanceLocation,
-            issuanceDate: doc.issuanceDate,
-            holder: true,
-            expiryDate: doc.expiryDate,
-            validityCountry: doc.validityCountry,
-            nationality: doc.nationality,
-            birthPlace: doc.birthPlace,
-          })),
-        })),
+        travelers: amadeusTravelers,
         holder: {
           name: {
-            firstName: travelers[0].name.firstName,
-            lastName: travelers[0].name.lastName,
+            firstName: amadeusTravelers[0].name.firstName,
+            lastName: amadeusTravelers[0].name.lastName,
           },
         },
       },
@@ -746,16 +799,12 @@ export async function bookFlightWithOptionalAddons(
       }
     );
     const amadeusBooking: any = response.data;
-    console.log("Flight booked on Amadeus:", amadeusBooking.data.id);
 
     // Margin settings
     const marginSetting: any = await prisma.marginSetting.findFirst({
       orderBy: { createdAt: "desc" },
     });
-    console.log("Margin settings fetched:", marginSetting);
-
     if (!marginSetting) {
-      console.error("Margin setting not configured");
       return res.status(500).json({ error: "Margin setting not configured" });
     }
     const marginPercentage = marginSetting.amount;
@@ -763,97 +812,73 @@ export async function bookFlightWithOptionalAddons(
     // Extract base price from Amadeus response
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
     if (flightOffers.length === 0) {
-      console.error("No flight offers found in Amadeus response");
-      return res
-        .status(500)
-        .json({ error: "No flight offers found in Amadeus response" });
+      return res.status(500).json({ error: "No flight offers found in Amadeus response" });
     }
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
-    console.log("Base price (NGN):", basePriceNGN);
 
     // Calculate margin and total
     const marginAdded = (marginPercentage / 100) * basePriceNGN;
     const originalTotalAmount = basePriceNGN + marginAdded;
-    console.log("Margin added (NGN):", marginAdded);
-    console.log("Original total amount (base + margin):", originalTotalAmount);
 
     // Get conversion rate USD -> NGN for addons
     const conversionRate = await getConversionRate("USD", "NGN");
-    console.log("Conversion rate USD->NGN:", conversionRate);
 
     // Fetch addons and calculate total addon price in NGN
     let addons: any[] = [];
     let addonTotalNGN = 0;
-
     if (addonIds.length > 0) {
       addons = await prisma.flightAddon.findMany({
         where: { id: { in: addonIds } },
       });
-      console.log(`Fetched ${addons.length} addons from DB for addonIds`);
-
       if (addons.length !== addonIds.length) {
-        console.error("One or more addonIds are invalid");
         return res.status(400).json({
           success: false,
           message: "One or more addonIds are invalid",
         });
       }
-
       addonTotalNGN = addons.reduce((sum, addon) => {
         const priceInUsd = addon.price;
         const priceInNgn = priceInUsd * conversionRate;
         return sum + priceInNgn;
       }, 0);
-      console.log("Total addons price (NGN):", addonTotalNGN);
-    } else {
-      console.log("No addons selected");
     }
 
     // Calculate grand total amount including addons
     const totalAmountNGN = originalTotalAmount + addonTotalNGN;
-    console.log("Grand total amount (NGN):", totalAmountNGN);
 
     // Step 1: Create booking (without addons)
-    const booking = await prisma.booking.create({
-      data: {
-        userId,
-        guestUserId,
-        referenceId: amadeusBooking.data.id,
-        type: "FLIGHT",
-        status: "CONFIRMED",
-        verified: true,
-        apiProvider: "AMADEUS",
-        apiReferenceId: amadeusBooking.data.id,
-        apiResponse: amadeusBooking,
-        bookingDetails: flightOffer,
-        totalAmount: +totalAmountNGN.toFixed(2),
-        currency: "NGN",
-        locationDetails: {},
-        airlineDetails: {},
-      },
-    });
-    console.log("Booking created with ID:", booking.id);
+    const bookingData: any = {
+      userId,
+      referenceId: amadeusBooking.data.id,
+      type: "FLIGHT",
+      status: "CONFIRMED",
+      verified: true,
+      apiProvider: "AMADEUS",
+      apiReferenceId: amadeusBooking.data.id,
+      apiResponse: amadeusBooking,
+      bookingDetails: flightOffer,
+      totalAmount: +totalAmountNGN.toFixed(2),
+      currency: "NGN",
+      locationDetails: {},
+      airlineDetails: {},
+    };
+
+    const booking = await prisma.booking.create({ data: bookingData });
 
     // Step 2: Link existing addons to booking by updating bookingId
     if (addonIds.length > 0) {
-      const updateResult = await prisma.flightAddon.updateMany({
+      await prisma.flightAddon.updateMany({
         where: { id: { in: addonIds } },
         data: { bookingId: booking.id },
       });
-      console.log(`Updated ${updateResult.count} addons to link bookingId`);
-
-      // Confirm linked addons
-      const linkedAddons = await prisma.flightAddon.findMany({
-        where: { bookingId: booking.id },
-      });
-      console.log("Linked addons after update:", linkedAddons);
     }
 
     // Step 3: Save travelers linked to booking
     for (const t of travelers) {
-      const traveler = await prisma.traveler.create({
+      await prisma.traveler.create({
         data: {
           bookingId: booking.id,
+          userId, // link traveler to registered user
           firstName: t.name.firstName,
           lastName: t.name.lastName,
           dateOfBirth: new Date(t.dateOfBirth),
@@ -868,7 +893,6 @@ export async function bookFlightWithOptionalAddons(
           nationality: t.documents?.[0]?.nationality,
         },
       });
-      console.log(`Traveler saved: ${traveler.firstName} ${traveler.lastName}`);
     }
 
     // Step 4: Fetch booking with addons included
@@ -876,14 +900,13 @@ export async function bookFlightWithOptionalAddons(
       where: { id: booking.id },
       include: { FlightAddon: true },
     });
-    console.log("Final booking with addons fetched:", bookingWithAddons);
 
     return res.status(201).json({
       success: true,
       message: "Flight successfully booked with addons",
       booking: bookingWithAddons,
       amadeus: amadeusBooking,
-      originalTotalAmount: +originalTotalAmount.toFixed(2), // base + margin
+      originalTotalAmount: +originalTotalAmount.toFixed(2),
       addonTotal: +addonTotalNGN.toFixed(2),
       totalAmount: +totalAmountNGN.toFixed(2),
     });
@@ -893,6 +916,241 @@ export async function bookFlightWithOptionalAddons(
       success: false,
       message: "Flight booking failed",
       error: error.response?.data || error.message,
+    });
+  }
+}
+
+export async function bookFlightAsGuest(
+  req: Request,
+  res: Response
+): Promise<any> {
+  const {
+    flightOffer,
+    travelers,
+    addonIds = [],
+    guestUserId,
+  } = req.body;
+
+  try {
+    console.log("Received booking request with:", {
+      flightOfferExists: !!flightOffer,
+      travelersCount: travelers?.length || 0,
+      addonIds,
+      travelers,
+      flightOffer,
+      guestUserId
+    });
+
+    if (!flightOffer || !travelers) {
+      return res.status(400).json({
+        error: "Missing required fields: flightOffer or travelers",
+      });
+    }
+
+    // Validate guestUserId
+    if (!guestUserId) {
+      return res.status(400).json({ error: "guestUserId is required for guest booking." });
+    }
+    const guestExists = await prisma.guestUser.findUnique({ where: { id: guestUserId } });
+    if (!guestExists) {
+      return res.status(400).json({ error: "Invalid guestUserId: guest user not found" });
+    }
+
+    // Transform travelers to Amadeus format if needed
+    const amadeusTravelers = travelers.map((t: any, idx: number) =>
+      t.name && t.contact && t.documents
+        ? { ...t, id: (idx + 1).toString() }
+        : mapTravelerToAmadeusFormat(t, (idx + 1).toString())
+    );
+
+    const token = await getAmadeusToken();
+
+    // Prepare Amadeus booking payload
+    const payload = {
+      data: {
+        type: "flight-order",
+        flightOffers: [flightOffer],
+        travelers: amadeusTravelers,
+        holder: {
+          name: {
+            firstName: amadeusTravelers[0].name.firstName,
+            lastName: amadeusTravelers[0].name.lastName,
+          },
+        },
+      },
+    };
+
+    // Book flight on Amadeus
+    const response: any = await axios.post(
+      `${baseURL}/v1/booking/flight-orders`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const amadeusBooking: any = response.data;
+
+    // Margin settings
+    const marginSetting: any = await prisma.marginSetting.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+    if (!marginSetting) {
+      return res.status(500).json({ error: "Margin setting not configured" });
+    }
+    const marginPercentage = marginSetting.amount;
+
+    // Extract base price from Amadeus response
+    const flightOffers = amadeusBooking?.data?.flightOffers || [];
+    if (flightOffers.length === 0) {
+      return res.status(500).json({ error: "No flight offers found in Amadeus response" });
+    }
+    const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+
+    // Calculate margin and total
+    const marginAdded = (marginPercentage / 100) * basePriceNGN;
+    const originalTotalAmount = basePriceNGN + marginAdded;
+
+    // Get conversion rate USD -> NGN for addons
+    const conversionRate = await getConversionRate("USD", "NGN");
+
+    // Fetch addons and calculate total addon price in NGN
+    let addons: any[] = [];
+    let addonTotalNGN = 0;
+    if (addonIds.length > 0) {
+      addons = await prisma.flightAddon.findMany({
+        where: { id: { in: addonIds } },
+      });
+      if (addons.length !== addonIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "One or more addonIds are invalid",
+        });
+      }
+      addonTotalNGN = addons.reduce((sum, addon) => {
+        const priceInUsd = addon.price;
+        const priceInNgn = priceInUsd * conversionRate;
+        return sum + priceInNgn;
+      }, 0);
+    }
+
+    // Calculate grand total amount including addons
+    const totalAmountNGN = originalTotalAmount + addonTotalNGN;
+
+    // Step 1: Create booking (without addons)
+    const bookingData: any = {
+      guestUserId,
+      referenceId: amadeusBooking.data.id,
+      type: "FLIGHT",
+      status: "CONFIRMED",
+      verified: true,
+      apiProvider: "AMADEUS",
+      apiReferenceId: amadeusBooking.data.id,
+      apiResponse: amadeusBooking,
+      bookingDetails: flightOffer,
+      totalAmount: +totalAmountNGN.toFixed(2),
+      currency: "NGN",
+      locationDetails: {},
+      airlineDetails: {},
+    };
+
+    const booking = await prisma.booking.create({ data: bookingData });
+
+    // Step 2: Link existing addons to booking by updating bookingId
+    if (addonIds.length > 0) {
+      await prisma.flightAddon.updateMany({
+        where: { id: { in: addonIds } },
+        data: { bookingId: booking.id },
+      });
+    }
+
+    // Step 3: Save travelers linked to booking
+    for (const t of travelers) {
+      await prisma.traveler.create({
+        data: {
+          bookingId: booking.id,
+          guestUserId, // link traveler to guest user
+          firstName: t.name.firstName,
+          lastName: t.name.lastName,
+          dateOfBirth: new Date(t.dateOfBirth),
+          gender: t.gender,
+          email: t.contact.emailAddress,
+          phone: t.contact.phones?.[0]?.number,
+          countryCode: t.contact.phones?.[0]?.countryCallingCode,
+          passportNumber: t.documents?.[0]?.number,
+          passportExpiry: t.documents?.[0]?.expiryDate
+            ? new Date(t.documents[0].expiryDate)
+            : undefined,
+          nationality: t.documents?.[0]?.nationality,
+        },
+      });
+    }
+
+    // Step 4: Fetch booking with addons included
+    const bookingWithAddons = await prisma.booking.findUnique({
+      where: { id: booking.id },
+      include: { FlightAddon: true },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Flight successfully booked with addons",
+      booking: bookingWithAddons,
+      amadeus: amadeusBooking,
+      originalTotalAmount: +originalTotalAmount.toFixed(2),
+      addonTotal: +addonTotalNGN.toFixed(2),
+      totalAmount: +totalAmountNGN.toFixed(2),
+    });
+  } catch (error: any) {
+    console.error("Booking Error:", error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Flight booking failed",
+      error: error.response?.data || error.message,
+    });
+  }
+}
+
+
+// PATCH /booking/:referenceId/status
+export async function updateBookingStatus(req: Request, res: Response):Promise<Response | any> {
+  const { referenceId } = req.params;
+  const { status, verified } = req.body;
+
+  if (!referenceId) {
+    return res.status(400).json({ error: "referenceId is required" });
+  }
+  if (!status && typeof verified === "undefined") {
+    return res.status(400).json({ error: "At least one of status or verified must be provided" });
+  }
+
+  try {
+    const booking = await prisma.booking.findUnique({ where: { referenceId } });
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const updatedBooking = await prisma.booking.update({
+      where: { referenceId },
+      data: {
+        ...(status && { status }),
+        ...(typeof verified === "boolean" && { verified }),
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Booking status updated successfully",
+      booking: updatedBooking,
+    });
+  } catch (error: any) {
+    console.error("Error updating booking status:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update booking status",
+      error: error.message,
     });
   }
 }

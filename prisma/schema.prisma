@@ -56,7 +56,7 @@ model AccessToken {
 
 model GuestUser {
   id         String    @id @default(uuid())
-  email      String
+  email      String    @unique
   firstName  String
   lastName   String
   phone      String?
@@ -64,12 +64,13 @@ model GuestUser {
   postalCode String?
   city       String?
   country    String?
-  bookings   Booking[]
+  bookings   Booking[] // Relation to bookings made by guest users
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
   @@index([email])
 }
+
 
 enum Role {
   USER
@@ -140,6 +141,9 @@ model Traveler {
   Booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   bookingId String?
 
+  userId      String?   // <-- Add this: link to User
+  guestUserId String?   // <-- Add this: link to GuestUser
+
   flightOfferId    String?
   flightOffer      FlightOffer? @relation(fields: [flightOfferId], references: [id], onDelete: Cascade)
   firstName        String
@@ -161,14 +165,10 @@ model Traveler {
   createdAt DateTime @default(now())
 
   @@index([flightOfferId])
+  @@index([userId])
+  @@index([guestUserId])
 }
 
-model FlightOffer {
-  id        String     @id @default(uuid())
-  offerData Json
-  createdAt DateTime   @default(now())
-  travelers Traveler[]
-}
 
 model ExcludedAirline {
   id          String   @id @default(uuid())
@@ -185,10 +185,22 @@ model MarginSetting {
   updatedAt DateTime @updatedAt
 }
 
+model FlightOffer {
+  id        String        @id @default(uuid())
+  offerData Json
+  createdAt DateTime      @default(now())
+  travelers Traveler[]
+  addons    FlightAddon[] // Relation: available addons for this flight offer (optional)
+}
+
 model FlightAddon {
-  id          String   @id @default(uuid())
-  bookingId   String?
-  booking     Booking? @relation("BookingAddons", fields: [bookingId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  bookingId String?
+  booking   Booking? @relation("BookingAddons", fields: [bookingId], references: [id], onDelete: Cascade)
+
+  flightOfferId String? // FK to FlightOffer (optional)
+  flightOffer   FlightOffer? @relation(fields: [flightOfferId], references: [id])
+
   name        String
   description String?
   price       Float
@@ -197,6 +209,7 @@ model FlightAddon {
   updatedAt   DateTime @updatedAt
 
   @@index([bookingId])
+  @@index([flightOfferId])
 }
 
 enum ServiceType {

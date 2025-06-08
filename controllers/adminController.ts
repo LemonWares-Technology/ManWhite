@@ -837,3 +837,108 @@ export const deleteFlightAddon = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: "Failed to delete addon" });
   }
 };
+
+export const addExistingAddonsToFlightOffer = async (
+  req: Request,
+  res: Response
+): Promise<Response | any> => {
+  try {
+    const { flightOfferId } = req.params;
+    const { addonIds } = req.body; // Expecting addonIds: string[]
+
+    if (!flightOfferId) {
+      return res.status(400).json({ message: "Flight offer ID is required" });
+    }
+    if (!Array.isArray(addonIds) || addonIds.length === 0) {
+      return res.status(400).json({ message: "addonIds array is required" });
+    }
+
+    // Verify flight offer exists
+    const flightOffer = await prisma.flightOffer.findUnique({
+      where: { id: flightOfferId },
+    });
+    if (!flightOffer) {
+      return res.status(404).json({ message: "Flight offer not found" });
+    }
+
+    // Verify all addonIds exist
+    const existingAddons = await prisma.flightAddon.findMany({
+      where: { id: { in: addonIds } },
+    });
+    if (existingAddons.length !== addonIds.length) {
+      return res.status(400).json({ message: "One or more addonIds are invalid" });
+    }
+
+    // Update addons to link to flight offer
+    const updateResult = await prisma.flightAddon.updateMany({
+      where: { id: { in: addonIds } },
+      data: { flightOfferId },
+    });
+
+    return res.status(200).json({
+      message: `${updateResult.count} addons linked to flight offer successfully`,
+    });
+  } catch (error: any) {
+    console.error("Error linking addons to flight offer:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+// Controller
+export const removeAddonsFromFlightOffer = async (
+  req: Request,
+  res: Response
+): Promise<Response | any> => {
+  try {
+    const { flightOfferId } = req.params;
+    const { addonIds } = req.body;
+
+    if (!flightOfferId) {
+      return res.status(400).json({ message: "Flight offer ID is required" });
+    }
+    if (!Array.isArray(addonIds) || addonIds.length === 0) {
+      return res.status(400).json({ message: "addonIds array is required" });
+    }
+
+    // Verify flight offer exists
+    const flightOffer = await prisma.flightOffer.findUnique({
+      where: { id: flightOfferId },
+    });
+    if (!flightOffer) {
+      return res.status(404).json({ message: "Flight offer not found" });
+    }
+
+    // Verify all addonIds are currently linked to this flight offer
+    const existingAddons = await prisma.flightAddon.findMany({
+      where: { 
+        id: { in: addonIds },
+        flightOfferId: flightOfferId 
+      },
+    });
+
+    if (existingAddons.length !== addonIds.length) {
+      return res.status(400).json({ 
+        message: "One or more addonIds are not linked to this flight offer" 
+      });
+    }
+
+    // Remove association by setting flightOfferId to null
+    const updateResult = await prisma.flightAddon.updateMany({
+      where: { id: { in: addonIds } },
+      data: { flightOfferId: null },
+    });
+
+    return res.status(200).json({
+      message: `${updateResult.count} addons unlinked from flight offer successfully`,
+    });
+  } catch (error: any) {
+    console.error("Error unlinking addons from flight offer:", error);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
