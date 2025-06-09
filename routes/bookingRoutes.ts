@@ -3,6 +3,7 @@ import {
   addFlightToCart,
   bookFlight,
   bookUserFlight,
+  emptyUserFlightCart,
   getUserCart,
   removeFlightFromCart,
 } from "../controllers/bookingController";
@@ -14,6 +15,7 @@ router.route("/book-flight/:userId/:transactionId").post(authenticateToken, book
 router.route("/add-to-cart/:userId").post(addFlightToCart);
 // authenticateToken,
 router.route("/cart/:userId", ).get(getUserCart);
+router.route("/delete-cart/:userId", ).delete(emptyUserFlightCart);
 router
   .route("/remove-from-cart/:cartId")
   .delete( removeFlightFromCart);

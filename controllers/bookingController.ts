@@ -154,6 +154,32 @@ export const removeFlightFromCart = async (
   }
 };
 
+// Remove all flights from a user's cart
+export const emptyUserFlightCart = async (req: Request, res: Response): Promise<any> => {
+  const { userId } = req.params;
+  try {
+    // Check if userId is provided
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+
+    // Delete all cart items for this user
+    await prisma.flightCart.deleteMany({
+      where: { userId },
+    });
+
+    return res.status(200).json({
+      message: "All flights removed from cart",
+    });
+  } catch (error: any) {
+    console.log(`AMADEUS API: `, error?.response?.data);
+    return res.status(500).json({
+      message: "Error occurred while emptying cart",
+      data: error?.message,
+    });
+  }
+};
+
 // export const getUserCart = async (
 //   req: Request,
 //   res: Response

@@ -13,6 +13,7 @@ import {
   getFlightOffers,
   getFlightOfferById,
   bookFlightAsGuest,
+  updateBookingStatus,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
 
@@ -25,6 +26,7 @@ router.route("/search-flight-price").post(searchFlightPrice); //Working
 
 router.route("/book-flight").post(bookFlightWithOptionalAddons); // Working
 router.route("/book-guest-flight").post(bookFlightAsGuest); // Working
+router.route("/booking/:referenceId/status").patch(updateBookingStatus);
 
 router.route("/get-flight-details/:referenceId").get(retrieveFlightDetails); // Working
 router.route("/delete-flight-details/:referenceId").delete(deleteFlightBooking); // Working
