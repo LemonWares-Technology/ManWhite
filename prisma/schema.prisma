@@ -71,7 +71,6 @@ model GuestUser {
   @@index([email])
 }
 
-
 enum Role {
   USER
   ADMIN
@@ -141,8 +140,8 @@ model Traveler {
   Booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   bookingId String?
 
-  userId      String?   // <-- Add this: link to User
-  guestUserId String?   // <-- Add this: link to GuestUser
+  userId      String? // <-- Add this: link to User
+  guestUserId String? // <-- Add this: link to GuestUser
 
   flightOfferId    String?
   flightOffer      FlightOffer? @relation(fields: [flightOfferId], references: [id], onDelete: Cascade)
@@ -168,7 +167,6 @@ model Traveler {
   @@index([userId])
   @@index([guestUserId])
 }
-
 
 model ExcludedAirline {
   id          String   @id @default(uuid())
