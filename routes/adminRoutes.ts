@@ -49,4 +49,7 @@ router.route("/get-addons").get(getAllFlightAddons);
 router.route("/update-addons").patch(updateFlightAddon);
 router.route("/delete-addons").delete(deleteFlightAddon);
 
+/// Sending emails for CRM
+// router.route("/send-email").post(sendEmailCampaign);
+
 export default router;

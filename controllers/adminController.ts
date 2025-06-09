@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
-import env from "dotenv";
 import { sendToken } from "../config/emailServices";
+import env from "dotenv";
 env.config();
 
 const ADMIN_SECRET = process.env.JWT! || "code";
