@@ -89,6 +89,39 @@ export const addFlightToCart = async (
   }
 };
 
+export const getUserCart = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { userId } = req.params;
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found or does not exist",
+      });
+    }
+
+    // Fetch all cart items for the user
+    const cartItems = await prisma.flightCart.findMany({
+      where: { userId },
+    });
+
+    return res.status(200).json({
+      message: "User cart retrieved successfully",
+      data: cartItems,
+    });
+  } catch (error: any) {
+    console.error("Error fetching user cart:", error.message);
+    return res.status(500).json({
+      message: "Error occurred while fetching user cart",
+      error: error.message,
+    });
+  }
+};
+
 export const removeFlightFromCart = async (
   req: Request,
   res: Response
@@ -121,37 +154,63 @@ export const removeFlightFromCart = async (
   }
 };
 
-export const getUserCart = async (
-  req: Request,
-  res: Response
-): Promise<any> => {
+// Remove all flights from a user's cart
+export const emptyUserFlightCart = async (req: Request, res: Response): Promise<any> => {
   const { userId } = req.params;
-
   try {
-    // Optional: Check if user exists (uncomment if needed)
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    // Check if userId is provided
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
     }
 
-    // Get all cart items for the user, ordered by creation date (latest first)
-    const cartItems = await prisma.flightCart.findMany({
+    // Delete all cart items for this user
+    await prisma.flightCart.deleteMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
     });
 
     return res.status(200).json({
-      message: "User cart fetched successfully",
-      data: cartItems,
+      message: "All flights removed from cart",
     });
   } catch (error: any) {
-    console.error("Error fetching user cart:", error);
+    console.log(`AMADEUS API: `, error?.response?.data);
     return res.status(500).json({
-      message: "Error occurred while fetching user cart",
-      error: error.message,
+      message: "Error occurred while emptying cart",
+      data: error?.message,
     });
   }
 };
+
+// export const getUserCart = async (
+//   req: Request,
+//   res: Response
+// ): Promise<any> => {
+//   const { userId } = req.params;
+
+//   try {
+//     // Optional: Check if user exists (uncomment if needed)
+//     const user = await prisma.user.findUnique({ where: { id: userId } });
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     // Get all cart items for the user, ordered by creation date (latest first)
+//     const cartItems = await prisma.flightCart.findMany({
+//       where: { userId },
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     return res.status(200).json({
+//       message: "User cart fetched successfully",
+//       data: cartItems,
+//     });
+//   } catch (error: any) {
+//     console.error("Error fetching user cart:", error);
+//     return res.status(500).json({
+//       message: "Error occurred while fetching user cart",
+//       error: error.message,
+//     });
+//   }
+// };
 
 export const bookFlight = async (req: any, res: any): Promise<any> => {
   try {

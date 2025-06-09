@@ -42,3 +42,46 @@ export async function getConversionRate(
     return 1;
   }
 }
+
+function formatDate(date: string | Date | undefined | null): string | null {
+  if (!date) return null;
+  if (date instanceof Date) return date.toISOString().split('T')[0];
+  if (typeof date === "string") return date.split('T')[0]; // Handles "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
+  return null;
+}
+
+export function mapTravelerToAmadeusFormat(t:any, id:any) {
+  return {
+    id: id,
+    dateOfBirth: formatDate(t.dateOfBirth),
+    name: {
+      firstName: t.firstName,
+      lastName: t.lastName,
+    },
+    gender: t.gender,
+    contact: {
+      emailAddress: t.email,
+      phones: [
+        {
+          deviceType: "MOBILE",
+          countryCallingCode: t.countryCode,
+          number: t.phone,
+        },
+      ],
+    },
+    documents: [
+      {
+        documentType: "PASSPORT",
+        number: t.passportNumber,
+        expiryDate: formatDate(t.passportExpiry),
+        issuanceCountry: t.issuanceCountry,
+        validityCountry: t.validityCountry,
+        nationality: t.nationality,
+        birthPlace: t.birthPlace,
+        issuanceLocation: t.issuanceLocation,
+        issuanceDate: t.issuanceDate,
+        holder: true,
+      },
+    ],
+  };
+}

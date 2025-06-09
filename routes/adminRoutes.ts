@@ -22,6 +22,8 @@ import {
   getAllFlightAddons,
   updateUserByAdmin,
   deleteUserByAdmin,
+  addExistingAddonsToFlightOffer,
+  removeAddonsFromFlightOffer,
 } from "../controllers/adminController";
 
 const router = Router();
@@ -46,8 +48,15 @@ router.route("/update-code/:iataCode").patch(updateExclusion); // Working
 router.route("/delete-code/:iataCode").delete(deleteExclusion); // Working
 router.route("/create-addons/:adminId").post(createFlightAddon);
 router.route("/get-addons").get(getAllFlightAddons);
+router.route("/add-addons-to-flight-offers/:flightOfferId").patch(addExistingAddonsToFlightOffer);//Working
+
+router.route("/:flightOfferId/addons").delete(removeAddonsFromFlightOffer);
+
 router.route("/update-addons").patch(updateFlightAddon);
-router.route("/delete-addons").delete(deleteFlightAddon);
+router.route("/delete-addons/:id").delete(deleteFlightAddon);
+
+/// Sending emails
+
 
 /// Sending emails for CRM
 // router.route("/send-email").post(sendEmailCampaign);
