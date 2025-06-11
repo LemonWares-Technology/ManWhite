@@ -14,13 +14,17 @@ import {
   getFlightOfferById,
   bookFlightAsGuest,
   updateBookingStatus,
+  getAirportDetails,
+  getAirlineDetailsEndpoint,
+  getAirlinesByAirport,
+  getAirlinesByMultipleLocations,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
 
 const router = express.Router();
 router.route("/search").get(searchFlights); // Working
 router.route("/save-flight-offer").post(saveSelectedFlightOffer); // Working
-router.route("/get-flight-offers").get(getFlightOffers);//Working
+router.route("/get-flight-offers").get(getFlightOffers); //Working
 router.route("/get-flight-offer/:id").get(getFlightOfferById); //working
 router.route("/search-flight-price").post(searchFlightPrice); //Working
 
@@ -33,6 +37,12 @@ router.route("/delete-flight-details/:referenceId").delete(deleteFlightBooking);
 router.route("/get-seatmaps/:referenceId").get(getSeatMapsByFlightId); // Working
 router.route("/get-one-flight/:flightId").get(getOneFlightDetails); // Working
 router.route("/update-flight-status/:flightId").patch(updateFlightStatus); // Working
+
+router.route("/airport-details").get(getAirportDetails); // Working
+router.route("/airline-details").get(getAirlineDetailsEndpoint); // Working
+router.route("/airport-airlines").get(getAirlinesByAirport); // Working
+router.route("/airlines-by-airports").get(getAirlinesByMultipleLocations); //
+
 // router.route("/get-all-bookings").get(getAllBookings)
 // router.route("/booking-with-addons").post(bookFlightWithAddons);
 

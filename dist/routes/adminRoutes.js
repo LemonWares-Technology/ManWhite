@@ -23,6 +23,13 @@ router.route("/update-code/:iataCode").patch(adminController_1.updateExclusion);
 router.route("/delete-code/:iataCode").delete(adminController_1.deleteExclusion); // Working
 router.route("/create-addons/:adminId").post(adminController_1.createFlightAddon);
 router.route("/get-addons").get(adminController_1.getAllFlightAddons);
+router
+    .route("/add-addons-to-flight-offers/:flightOfferId")
+    .patch(adminController_1.addExistingAddonsToFlightOffer); //Working
+router.route("/addons/:flightOfferId/").delete(adminController_1.removeAddonsFromFlightOffer);
 router.route("/update-addons").patch(adminController_1.updateFlightAddon);
-router.route("/delete-addons").delete(adminController_1.deleteFlightAddon);
+router.route("/delete-addons/:id").delete(adminController_1.deleteFlightAddon);
+/// Sending emails
+/// Sending emails for CRM
+// router.route("/send-email").post(sendEmailCampaign);
 exports.default = router;

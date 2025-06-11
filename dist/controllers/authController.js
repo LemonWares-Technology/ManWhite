@@ -23,12 +23,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.createAccount = void 0;
+exports.updateTravelerDetails = exports.getTravelerById = exports.getAllTravelers = exports.getTravelerForAmadeusBooking = exports.getTravelersForAmadeusBooking = exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.createAccount = void 0;
+exports.createGuestUser = createGuestUser;
+exports.getAllGuestUsers = getAllGuestUsers;
+exports.getGuestUserById = getGuestUserById;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const client_1 = require("@prisma/client");
 const emailServices_1 = require("../config/emailServices");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const date_fns_1 = require("date-fns");
+const amadeusHelper_1 = require("../utils/amadeusHelper");
 const prisma = new client_1.PrismaClient();
 const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const generateAuthenticationCode = () => {
@@ -53,7 +57,7 @@ const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 verified: true,
             },
         });
-        yield (0, emailServices_1.sendVerification)(newUser);
+        // await sendVerification(newUser);
         const { password: _ } = newUser, hidePassword = __rest(newUser, ["password"]);
         return res.status(201).json({
             message: `Account created successfully`,
@@ -384,24 +388,85 @@ const updateuserAccountDetails = (req, res) => __awaiter(void 0, void 0, void 0,
     }
 });
 exports.updateuserAccountDetails = updateuserAccountDetails;
+// export const createTraveler = async (
+//   req: Request,
+//   res: Response
+// ): Promise<Response | any> => {
+//   try {
+//     const {
+//       flightOfferId,
+//       firstName,
+//       lastName,
+//       dateOfBirth,
+//       gender,
+//       email,
+//       phone,
+//       countryCode,
+//       birthPlace,
+//       passportNumber,
+//       passportExpiry,
+//       issuanceCountry,
+//       validityCountry,
+//       nationality,
+//       issuanceDate,
+//       issuanceLocation,
+//     } = req.body;
+//     // Validate flight offer exists if provided
+//     if (flightOfferId) {
+//       const exists = await prisma.flightOffer.findUnique({
+//         where: { id: flightOfferId },
+//       });
+//       if (!exists) {
+//         return res.status(400).json({ message: "Invalid flightOfferId" });
+//       }
+//     }
+//     const newTraveler = await prisma.traveler.create({
+//       data: {
+//         flightOfferId,
+//         firstName,
+//         lastName,
+//         dateOfBirth: new Date(dateOfBirth),
+//         gender,
+//         email,
+//         phone,
+//         countryCode,
+//         birthPlace,
+//         passportNumber,
+//         passportExpiry: passportExpiry ? new Date(passportExpiry) : null,
+//         issuanceCountry,
+//         validityCountry,
+//         nationality,
+//         issuanceDate: issuanceDate ? new Date(issuanceDate) : null,
+//         issuanceLocation,
+//       },
+//     });
+//     return res.status(201).json({
+//       message: "Traveler created successfully",
+//       traveler: newTraveler,
+//     });
+//   } catch (error: any) {
+//     console.error("Error creating traveler:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Server error", error: error.message });
+//   }
+// };
+// Create traveler endpoint
 const createTraveler = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { bookingId, firstName, lastName, dateOfBirth, gender, email, phone, countryCode, birthPlace, passportNumber, passportExpiry, issuanceCountry, validityCountry, nationality, issuanceDate, issuanceLocation, } = req.body;
-        // // Validate required fields
-        // if (
-        //   !bookingId ||
-        //   !firstName ||
-        //   !lastName ||
-        //   !dateOfBirth ||
-        //   !gender ||
-        //   !email ||
-        //   !phone
-        // ) {
-        //   return res.status(400).json({ message: "Missing required traveler details" });
-        // }
+        const { flightOfferId, firstName, lastName, dateOfBirth, gender, email, phone, countryCode, birthPlace, passportNumber, passportExpiry, issuanceCountry, validityCountry, nationality, issuanceDate, issuanceLocation, } = req.body;
+        // Validate flight offer exists if provided
+        if (flightOfferId) {
+            const exists = yield prisma.flightOffer.findUnique({
+                where: { id: flightOfferId },
+            });
+            if (!exists) {
+                return res.status(400).json({ message: "Invalid flightOfferId" });
+            }
+        }
         const newTraveler = yield prisma.traveler.create({
             data: {
-                bookingId,
+                flightOfferId,
                 firstName,
                 lastName,
                 dateOfBirth: new Date(dateOfBirth),
@@ -427,9 +492,224 @@ const createTraveler = (req, res) => __awaiter(void 0, void 0, void 0, function*
     catch (error) {
         console.error("Error creating traveler:", error);
         return res.status(500).json({
-            message: "Error creating traveler",
+            message: "Server error",
             error: error.message,
         });
     }
 });
 exports.createTraveler = createTraveler;
+// Endpoint to get all travelers formatted for Amadeus booking
+const getTravelersForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { flightOfferId } = req.query;
+        if (!flightOfferId || typeof flightOfferId !== "string") {
+            return res.status(400).json({ message: "flightOfferId query parameter is required" });
+        }
+        const travelers = yield prisma.traveler.findMany({
+            where: { flightOfferId },
+            orderBy: { createdAt: "asc" },
+        });
+        const amadeusTravelers = travelers.map((traveler, index) => (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id || index + 1));
+        return res.status(200).json({
+            message: "Travelers formatted for Amadeus booking retrieved successfully",
+            travelers: amadeusTravelers,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching travelers for Amadeus booking:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.getTravelersForAmadeusBooking = getTravelersForAmadeusBooking;
+// Endpoint to get one traveler formatted for Amadeus booking
+const getTravelerForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Traveler ID is required" });
+        }
+        const traveler = yield prisma.traveler.findUnique({
+            where: { id },
+        });
+        if (!traveler) {
+            return res.status(404).json({ message: "Traveler not found" });
+        }
+        const amadeusTraveler = (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id);
+        ; // ID can be "1" or traveler.id as string
+        console.log("Raw traveler from DB:", traveler);
+        console.log("Mapped Amadeus traveler:", amadeusTraveler);
+        return res.status(200).json({
+            message: "Traveler formatted for Amadeus booking retrieved successfully",
+            traveler: amadeusTraveler,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching traveler for Amadeus booking:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.getTravelerForAmadeusBooking = getTravelerForAmadeusBooking;
+// Get all travelers
+const getAllTravelers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const travelers = yield prisma.traveler.findMany({
+            orderBy: { createdAt: "desc" },
+        });
+        return res.status(200).json({
+            message: "Travelers retrieved successfully",
+            data: travelers,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching travelers:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.getAllTravelers = getAllTravelers;
+// Get traveler by ID
+const getTravelerById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json({ message: "Traveler ID is required" });
+        }
+        const traveler = yield prisma.traveler.findUnique({
+            where: { id },
+        });
+        if (!traveler) {
+            return res.status(404).json({ message: "Traveler not found" });
+        }
+        return res.status(200).json({
+            message: "Traveler retrieved successfully",
+            data: traveler,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching traveler:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.getTravelerById = getTravelerById;
+const updateTravelerDetails = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { flightOfferId, firstName, lastName, dateOfBirth, gender, email, phone, countryCode, birthPlace, passportNumber, passportExpiry, issuanceCountry, validityCountry, nationality, issuanceDate, issuanceLocation, } = req.body;
+        if (!id) {
+            return res.status(400).json({ message: "Traveler ID is required" });
+        }
+        // Verify traveler exists
+        const existingTraveler = yield prisma.traveler.findUnique({
+            where: { id },
+        });
+        if (!existingTraveler) {
+            return res.status(404).json({ message: "Traveler not found" });
+        }
+        // Validate flight offer exists if provided
+        if (flightOfferId) {
+            const exists = yield prisma.flightOffer.findUnique({
+                where: { id: flightOfferId },
+            });
+            if (!exists) {
+                return res.status(400).json({ message: "Invalid flightOfferId" });
+            }
+        }
+        const updatedTraveler = yield prisma.traveler.update({
+            where: { id },
+            data: {
+                flightOfferId: flightOfferId || existingTraveler.flightOfferId,
+                firstName: firstName || existingTraveler.firstName,
+                lastName: lastName || existingTraveler.lastName,
+                dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : existingTraveler.dateOfBirth,
+                gender: gender || existingTraveler.gender,
+                email: email || existingTraveler.email,
+                phone: phone || existingTraveler.phone,
+                countryCode: countryCode || existingTraveler.countryCode,
+                birthPlace: birthPlace || existingTraveler.birthPlace,
+                passportNumber: passportNumber || existingTraveler.passportNumber,
+                passportExpiry: passportExpiry ? new Date(passportExpiry) : existingTraveler.passportExpiry,
+                issuanceCountry: issuanceCountry || existingTraveler.issuanceCountry,
+                validityCountry: validityCountry || existingTraveler.validityCountry,
+                nationality: nationality || existingTraveler.nationality,
+                issuanceDate: issuanceDate ? new Date(issuanceDate) : existingTraveler.issuanceDate,
+                issuanceLocation: issuanceLocation || existingTraveler.issuanceLocation,
+            },
+        });
+        return res.status(200).json({
+            message: "Traveler updated successfully",
+            traveler: updatedTraveler,
+        });
+    }
+    catch (error) {
+        console.error("Error updating traveler:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.updateTravelerDetails = updateTravelerDetails;
+// POST /api/guest-user
+function createGuestUser(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { email, firstName, lastName, phone, address, postalCode, city, country } = req.body;
+        if (!email || !firstName || !lastName) {
+            return res.status(400).json({ error: "Missing required guest fields" });
+        }
+        try {
+            // Check if guest already exists
+            let guest = yield prisma.guestUser.findUnique({ where: { email } });
+            if (!guest) {
+                guest = yield prisma.guestUser.create({
+                    data: { email, firstName, lastName, phone, address, postalCode, city, country }
+                });
+            }
+            return res.status(201).json({ guestUserId: guest.id, guest });
+        }
+        catch (error) {
+            console.error("Error creating guest user:", error);
+            return res.status(500).json({ error: "Server error" });
+        }
+    });
+}
+// GET /api/guest-users
+function getAllGuestUsers(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const guests = yield prisma.guestUser.findMany();
+            return res.status(200).json({ guests });
+        }
+        catch (error) {
+            console.error("Error fetching guest users:", error);
+            return res.status(500).json({ error: "Server error" });
+        }
+    });
+}
+// GET /api/guest-users/:id
+function getGuestUserById(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { id } = req.params;
+        try {
+            const guest = yield prisma.guestUser.findUnique({ where: { id } });
+            if (!guest) {
+                return res.status(404).json({ error: "Guest user not found" });
+            }
+            return res.status(200).json({ guest });
+        }
+        catch (error) {
+            console.error("Error fetching guest user:", error);
+            return res.status(500).json({ error: "Server error" });
+        }
+    });
+}

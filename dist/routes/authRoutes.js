@@ -26,4 +26,15 @@ router.route("/users").get(authController_1.getAllAccounts);
 router.route("/:id/update-details").patch(authController_1.updateuserAccountDetails);
 //updating traveler details
 router.route("/traveler").post(authController_1.createTraveler);
+//getting all travelers details
+router.route("/travelers").get(authController_1.getAllTravelers);
+router.route("/traveler/:id/amadeus").get(authController_1.getTravelerForAmadeusBooking);
+router.route("/travelers/amadeus").get(authController_1.getTravelersForAmadeusBooking);
+//getting one traveler details
+router.route("/traveler/:id").get(authController_1.getTravelerById);
+//updating one traveler details
+router.route("/traveler/:id").put(authController_1.updateTravelerDetails);
+router.route("/guest-user").post(authController_1.createGuestUser);
+router.route("/guest-users").get(authController_1.getAllGuestUsers);
+router.route("/guest-user/:id").get(authController_1.getGuestUserById);
 exports.default = router;

@@ -7,4 +7,5 @@ const express_1 = __importDefault(require("express"));
 const paymentController_1 = require("../controllers/paymentController");
 const router = express_1.default.Router();
 router.route("/initialize").post(paymentController_1.initializePayment);
+router.route("/payment/verify").get(paymentController_1.verifyFlutterwavePayment);
 exports.default = router;

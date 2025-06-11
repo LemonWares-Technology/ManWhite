@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteFlightAddon = exports.updateFlightAddon = exports.getAllFlightAddons = exports.createFlightAddon = void 0;
+exports.removeAddonsFromFlightOffer = exports.addExistingAddonsToFlightOffer = exports.deleteFlightAddon = exports.updateFlightAddon = exports.getAllFlightAddons = exports.createFlightAddon = void 0;
 exports.createAdminAccount = createAdminAccount;
 exports.adminLogin = adminLogin;
 exports.createAgent = createAgent;
@@ -35,8 +35,8 @@ const client_1 = require("@prisma/client");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const emailServices_1 = require("../config/emailServices");
+const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const ADMIN_SECRET = process.env.JWT || "code";
 const prisma = new client_1.PrismaClient();
@@ -482,6 +482,7 @@ function getAllBookings(req, res) {
                     },
                     travelers: true, // Include all traveler fields
                     review: true, // Include review if exists
+                    FlightAddon: true,
                 },
             });
             return res.status(200).json({ bookings });
@@ -686,10 +687,9 @@ function deleteExclusion(req, res) {
 // Create Addons
 const createFlightAddon = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { type, name, description, price } = req.body;
+        const { name, description, price } = req.body;
         const addon = yield prisma.flightAddon.create({
             data: {
-                type,
                 name,
                 description,
                 price,
@@ -724,11 +724,11 @@ exports.getAllFlightAddons = getAllFlightAddons;
 // Update addon
 const updateFlightAddon = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const { type, name, description, price, currency } = req.body;
+    const { name, description, price, currency } = req.body;
     try {
         const addon = yield prisma.flightAddon.update({
             where: { id },
-            data: { type, name, description, price, currency },
+            data: { name, description, price, currency },
         });
         res.status(200).json({ success: true, addon });
     }
@@ -751,3 +751,93 @@ const deleteFlightAddon = (req, res) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.deleteFlightAddon = deleteFlightAddon;
+const addExistingAddonsToFlightOffer = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { flightOfferId } = req.params;
+        const { addonIds } = req.body; // Expecting addonIds: string[]
+        if (!flightOfferId) {
+            return res.status(400).json({ message: "Flight offer ID is required" });
+        }
+        if (!Array.isArray(addonIds) || addonIds.length === 0) {
+            return res.status(400).json({ message: "addonIds array is required" });
+        }
+        // Verify flight offer exists
+        const flightOffer = yield prisma.flightOffer.findUnique({
+            where: { id: flightOfferId },
+        });
+        if (!flightOffer) {
+            return res.status(404).json({ message: "Flight offer not found" });
+        }
+        // Verify all addonIds exist
+        const existingAddons = yield prisma.flightAddon.findMany({
+            where: { id: { in: addonIds } },
+        });
+        if (existingAddons.length !== addonIds.length) {
+            return res.status(400).json({ message: "One or more addonIds are invalid" });
+        }
+        // Update addons to link to flight offer
+        const updateResult = yield prisma.flightAddon.updateMany({
+            where: { id: { in: addonIds } },
+            data: { flightOfferId },
+        });
+        return res.status(200).json({
+            message: `${updateResult.count} addons linked to flight offer successfully`,
+        });
+    }
+    catch (error) {
+        console.error("Error linking addons to flight offer:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.addExistingAddonsToFlightOffer = addExistingAddonsToFlightOffer;
+// Controller
+const removeAddonsFromFlightOffer = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { flightOfferId } = req.params;
+        const { addonIds } = req.body;
+        if (!flightOfferId) {
+            return res.status(400).json({ message: "Flight offer ID is required" });
+        }
+        if (!Array.isArray(addonIds) || addonIds.length === 0) {
+            return res.status(400).json({ message: "addonIds array is required" });
+        }
+        // Verify flight offer exists
+        const flightOffer = yield prisma.flightOffer.findUnique({
+            where: { id: flightOfferId },
+        });
+        if (!flightOffer) {
+            return res.status(404).json({ message: "Flight offer not found" });
+        }
+        // Verify all addonIds are currently linked to this flight offer
+        const existingAddons = yield prisma.flightAddon.findMany({
+            where: {
+                id: { in: addonIds },
+                flightOfferId: flightOfferId
+            },
+        });
+        if (existingAddons.length !== addonIds.length) {
+            return res.status(400).json({
+                message: "One or more addonIds are not linked to this flight offer"
+            });
+        }
+        // Remove association by setting flightOfferId to null
+        const updateResult = yield prisma.flightAddon.updateMany({
+            where: { id: { in: addonIds } },
+            data: { flightOfferId: null },
+        });
+        return res.status(200).json({
+            message: `${updateResult.count} addons unlinked from flight offer successfully`,
+        });
+    }
+    catch (error) {
+        console.error("Error unlinking addons from flight offer:", error);
+        return res.status(500).json({
+            message: "Server error",
+            error: error.message,
+        });
+    }
+});
+exports.removeAddonsFromFlightOffer = removeAddonsFromFlightOffer;

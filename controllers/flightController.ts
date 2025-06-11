@@ -731,12 +731,7 @@ export async function bookFlightWithOptionalAddons(
   req: Request,
   res: Response
 ): Promise<any> {
-  const {
-    flightOffer,
-    travelers,
-    addonIds = [],
-    userId,
-  } = req.body;
+  const { flightOffer, travelers, addonIds = [], userId } = req.body;
 
   try {
     console.log("Received booking request with:", {
@@ -756,7 +751,9 @@ export async function bookFlightWithOptionalAddons(
 
     // Validate userId
     if (!userId) {
-      return res.status(400).json({ error: "userId is required for this booking endpoint." });
+      return res
+        .status(400)
+        .json({ error: "userId is required for this booking endpoint." });
     }
     const userExists = await prisma.user.findUnique({ where: { id: userId } });
     if (!userExists) {
@@ -812,7 +809,9 @@ export async function bookFlightWithOptionalAddons(
     // Extract base price from Amadeus response
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
     if (flightOffers.length === 0) {
-      return res.status(500).json({ error: "No flight offers found in Amadeus response" });
+      return res
+        .status(500)
+        .json({ error: "No flight offers found in Amadeus response" });
     }
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
 
@@ -924,12 +923,7 @@ export async function bookFlightAsGuest(
   req: Request,
   res: Response
 ): Promise<any> {
-  const {
-    flightOffer,
-    travelers,
-    addonIds = [],
-    guestUserId,
-  } = req.body;
+  const { flightOffer, travelers, addonIds = [], guestUserId } = req.body;
 
   try {
     console.log("Received booking request with:", {
@@ -938,7 +932,7 @@ export async function bookFlightAsGuest(
       addonIds,
       travelers,
       flightOffer,
-      guestUserId
+      guestUserId,
     });
 
     if (!flightOffer || !travelers) {
@@ -949,11 +943,17 @@ export async function bookFlightAsGuest(
 
     // Validate guestUserId
     if (!guestUserId) {
-      return res.status(400).json({ error: "guestUserId is required for guest booking." });
+      return res
+        .status(400)
+        .json({ error: "guestUserId is required for guest booking." });
     }
-    const guestExists = await prisma.guestUser.findUnique({ where: { id: guestUserId } });
+    const guestExists = await prisma.guestUser.findUnique({
+      where: { id: guestUserId },
+    });
     if (!guestExists) {
-      return res.status(400).json({ error: "Invalid guestUserId: guest user not found" });
+      return res
+        .status(400)
+        .json({ error: "Invalid guestUserId: guest user not found" });
     }
 
     // Transform travelers to Amadeus format if needed
@@ -1005,7 +1005,9 @@ export async function bookFlightAsGuest(
     // Extract base price from Amadeus response
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
     if (flightOffers.length === 0) {
-      return res.status(500).json({ error: "No flight offers found in Amadeus response" });
+      return res
+        .status(500)
+        .json({ error: "No flight offers found in Amadeus response" });
     }
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
 
@@ -1113,9 +1115,11 @@ export async function bookFlightAsGuest(
   }
 }
 
-
 // PATCH /booking/:referenceId/status
-export async function updateBookingStatus(req: Request, res: Response):Promise<Response | any> {
+export async function updateBookingStatus(
+  req: Request,
+  res: Response
+): Promise<Response | any> {
   const { referenceId } = req.params;
   const { status, verified } = req.body;
 
@@ -1123,7 +1127,9 @@ export async function updateBookingStatus(req: Request, res: Response):Promise<R
     return res.status(400).json({ error: "referenceId is required" });
   }
   if (!status && typeof verified === "undefined") {
-    return res.status(400).json({ error: "At least one of status or verified must be provided" });
+    return res
+      .status(400)
+      .json({ error: "At least one of status or verified must be provided" });
   }
 
   try {
@@ -1155,3 +1161,365 @@ export async function updateBookingStatus(req: Request, res: Response):Promise<R
   }
 }
 
+// Cache or fetch airport details by IATA code
+async function getCachedLocationDetail(iataCode: string, token: string) {
+  const response: any = await axios.get(
+    `${baseURL}/v1/reference-data/locations`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params: {
+        subType: "AIRPORT",
+        keyword: iataCode.toUpperCase(),
+      },
+    }
+  );
+  if (response.data && response.data.data && response.data.data.length > 0) {
+    return response.data.data[0];
+  }
+  return null;
+}
+
+// New endpoint to get airport name/details by IATA code
+export async function getAirportDetails(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { iataCode } = req.query;
+
+    if (!iataCode || typeof iataCode !== "string") {
+      return res.status(400).json({ error: "Missing or invalid IATA code" });
+    }
+
+    const token = await getAmadeusToken();
+
+    const airportDetails = await getCachedLocationDetail(iataCode, token);
+
+    if (!airportDetails) {
+      return res.status(404).json({ error: "Airport not found" });
+    }
+
+    return res.status(200).json({
+      iataCode: airportDetails.iataCode,
+      name: airportDetails.name,
+      detailedName: airportDetails.detailedName,
+      city: airportDetails.address?.cityName,
+      cityCode: airportDetails.address?.cityCode,
+      country: airportDetails.address?.countryName,
+      countryCode: airportDetails.address?.countryCode,
+      regionCode: airportDetails.address?.regionCode,
+      timeZone: airportDetails.timeZoneOffset,
+      coordinates: airportDetails.geoCode,
+      analytics: airportDetails.analytics,
+      type: airportDetails.type,
+      subType: airportDetails.subType,
+      id: airportDetails.id,
+      selfLink: airportDetails.self?.href,
+    });
+  } catch (error: any) {
+    console.error(
+      "Airport details error:",
+      error.response?.data || error.message
+    );
+    return res.status(500).json({
+      error: "Failed to fetch airport details",
+      details: error.response?.data || error.message,
+    });
+  }
+}
+
+// Function to get airline details by IATA code
+async function getAirlineDetails(iataCode: string, token: string) {
+  const response: any = await axios.get(
+    `${baseURL}/v1/reference-data/airlines?airlineCodes=${iataCode}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (response.data && response.data.data && response.data.data.length > 0) {
+    console.log(`response`, response.data.data);
+    return response.data.data[0]; // airline details object
+  }
+  return null;
+}
+
+// Express route handler to get airline details
+export async function getAirlineDetailsEndpoint(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { iataCode } = req.query;
+
+    if (!iataCode || typeof iataCode !== "string") {
+      return res.status(400).json({ error: "Missing or invalid IATA code" });
+    }
+
+    const token = await getAmadeusToken();
+
+    const airlineDetails = await getAirlineDetails(iataCode, token);
+
+    if (!airlineDetails) {
+      return res.status(404).json({ error: "Airline not found" });
+    }
+
+    console.log(`airlineDetails`, airlineDetails);
+
+    return res.status(200).json({
+      iataCode,
+      type: airlineDetails?.type,
+      icaoCode: airlineDetails?.icaoCode,
+      businessName: airlineDetails?.businessName,
+      commonName: airlineDetails?.businessName,
+    });
+  } catch (error: any) {
+    console.error(
+      "Airline details error:",
+      error.response?.data || error.message
+    );
+    return res.status(500).json({
+      error: "Failed to fetch airline details",
+      details: error.response?.data || error.message,
+    });
+  }
+}
+
+// Search flights departing from the airport to any destination (limited results)
+async function searchFlightsFromAirport(
+  originIata: string,
+  destinationIata: string,
+  departureDate: string,
+  adults: number,
+  token: string
+): Promise<any[]> {
+  const response: any = await axios.get(
+    `${baseURL}/v2/shopping/flight-offers`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      params: {
+        originLocationCode: originIata,
+        destinationLocationCode: destinationIata,
+        departureDate: departureDate,
+        adults: adults,
+        max: 50,
+      },
+    }
+  );
+  return response.data.data || [];
+}
+
+// Fetch airline details by multiple airline codes (comma separated)
+async function getAirlinesDetails(
+  airlineCodes: string[],
+  token: string
+): Promise<any[]> {
+  if (airlineCodes.length === 0) return [];
+
+  const codesParam = airlineCodes.join(",");
+
+  const response: any = await axios.get(
+    `${baseURL}/v1/reference-data/airlines?airlineCodes=${codesParam}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data.data || [];
+}
+
+// Express route handler to get airlines operating at an airport via flight offers
+export async function getAirlinesByAirport(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { iataCode, destinationCode, departureDate, adults } = req.query;
+
+    if (
+      !iataCode ||
+      typeof iataCode !== "string" ||
+      !destinationCode ||
+      typeof destinationCode !== "string" ||
+      !departureDate ||
+      typeof departureDate !== "string" ||
+      !adults ||
+      isNaN(Number(adults))
+    ) {
+      return res.status(400).json({
+        error:
+          "Missing or invalid parameters: iataCode, destinationCode, departureDate, adults are required",
+      });
+    }
+
+    const iataCodeUpper = iataCode.toUpperCase();
+    const destinationCodeUpper = destinationCode.toUpperCase();
+
+    const token = await getAmadeusToken();
+
+    console.log(`token`, token);
+
+    // Step 1: Search flight offers departing from the airport
+    const flightOffers = await searchFlightsFromAirport(
+      iataCodeUpper,
+      destinationCodeUpper,
+      departureDate,
+      Number(adults),
+      token
+    );
+    console.log(`flightOffers`, flightOffers);
+
+    // Step 2: Extract unique airline codes from flight offers
+    const airlineCodesSet = new Set<string>();
+    for (const offer of flightOffers) {
+      if (
+        offer.validatingAirlineCodes &&
+        offer.validatingAirlineCodes.length > 0
+      ) {
+        offer.validatingAirlineCodes.forEach((code: string) =>
+          airlineCodesSet.add(code)
+        );
+      }
+      // Also consider segments airline codes if needed:
+      if (offer.itineraries) {
+        offer.itineraries.forEach((itinerary: any) => {
+          itinerary.segments.forEach((segment: any) => {
+            if (segment.carrierCode) airlineCodesSet.add(segment.carrierCode);
+          });
+        });
+      }
+    }
+    const airlineCodes = Array.from(airlineCodesSet);
+    console.log(`airlineCodes`, airlineCodes);
+
+    if (airlineCodes.length === 0) {
+      return res.status(200).json({
+        message: "No airlines found for the given airport",
+        airlines: [],
+      });
+    }
+
+    // Step 3: Fetch airline details for these airline codes
+    const airlinesDetails = await getAirlinesDetails(airlineCodes, token);
+    console.log(`airlinesDetails`, airlinesDetails);
+
+    // Step 4: Return airline details
+    return res.status(200).json({
+      airport: iataCodeUpper,
+      airlines: airlinesDetails.map((airline) => ({
+        iataCode: airline.iataCode,
+        icaoCode: airline.icaoCode,
+        businessName: airline.businessName || airline.name || null,
+        type: airline.type,
+      })),
+    });
+  } catch (error: any) {
+    console.error(
+      "Error fetching airlines by airport:",
+      error.response?.data || error.message
+    );
+    return res.status(500).json({
+      error: "Failed to fetch airlines for the airport",
+      details: error.response?.data || error.message,
+    });
+  }
+}
+
+export async function getAirlinesByMultipleLocations(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { iataCodes } = req.query;
+
+    if (!iataCodes || typeof iataCodes !== "string") {
+      return res
+        .status(400)
+        .json({ error: "Missing or invalid 'iataCodes' query parameter" });
+    }
+
+    // Split comma-separated IATA codes and uppercase them
+    const airports = iataCodes
+      .split(",")
+      .map((code) => code.trim().toUpperCase())
+      .filter((code) => code.length === 3);
+
+    if (airports.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "No valid IATA codes provided in 'iataCodes'" });
+    }
+
+    const token = await getAmadeusToken();
+
+    const airlineCodesSet = new Set<string>();
+
+    // Fetch routes for each airport to get airline codes
+    for (const airport of airports) {
+      try {
+        const response: any = await axios.get(`${baseURL}/v1/airport/routes`, {
+          params: { departureAirportCode: airport },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const routes = response.data.data || [];
+        for (const route of routes) {
+          if (route.airlineCode) {
+            airlineCodesSet.add(route.airlineCode);
+          }
+        }
+      } catch (err: any) {
+        console.warn(
+          `Failed to fetch routes for airport ${airport}:`,
+          err.response?.data || err.message
+        );
+        // Continue for other airports even if one fails
+      }
+    }
+
+    const airlineCodes = Array.from(airlineCodesSet);
+    if (airlineCodes.length === 0) {
+      return res.status(200).json({
+        message: "No airlines found for the provided airports",
+        airlines: [],
+      });
+    }
+
+    // Fetch airline details in bulk
+    const airlinesResponse: any = await axios.get(
+      `${baseURL}/v1/reference-data/airlines`,
+      {
+        params: { airlineCodes: airlineCodes.join(",") },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const airlines = airlinesResponse.data.data || [];
+
+    return res.status(200).json({
+      airports,
+      airlines,
+    });
+  } catch (error: any) {
+    console.error(
+      "Error fetching airlines by multiple locations:",
+      error.response?.data || error.message
+    );
+    return res.status(500).json({
+      error: "Failed to fetch airlines for the provided locations",
+      details: error.response?.data || error.message,
+    });
+  }
+}

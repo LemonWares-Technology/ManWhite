@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bookUserFlight = exports.bookFlight = exports.removeFlightFromCart = exports.addFlightToCart = exports.verifyFlightPrice = void 0;
+exports.bookUserFlight = exports.bookFlight = exports.emptyUserFlightCart = exports.removeFlightFromCart = exports.getUserCart = exports.addFlightToCart = exports.verifyFlightPrice = void 0;
 const client_1 = require("@prisma/client");
 const axios_1 = __importDefault(require("axios"));
 const getToken_1 = __importDefault(require("../utils/getToken"));
@@ -85,6 +85,36 @@ const addFlightToCart = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.addFlightToCart = addFlightToCart;
+const getUserCart = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { userId } = req.params;
+        // Check if user exists
+        const user = yield prisma.user.findUnique({
+            where: { id: userId },
+        });
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found or does not exist",
+            });
+        }
+        // Fetch all cart items for the user
+        const cartItems = yield prisma.flightCart.findMany({
+            where: { userId },
+        });
+        return res.status(200).json({
+            message: "User cart retrieved successfully",
+            data: cartItems,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching user cart:", error.message);
+        return res.status(500).json({
+            message: "Error occurred while fetching user cart",
+            error: error.message,
+        });
+    }
+});
+exports.getUserCart = getUserCart;
 const removeFlightFromCart = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const { cartId } = req.params;
@@ -113,6 +143,60 @@ const removeFlightFromCart = (req, res) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.removeFlightFromCart = removeFlightFromCart;
+// Remove all flights from a user's cart
+const emptyUserFlightCart = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const { userId } = req.params;
+    try {
+        // Check if userId is provided
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+        // Delete all cart items for this user
+        yield prisma.flightCart.deleteMany({
+            where: { userId },
+        });
+        return res.status(200).json({
+            message: "All flights removed from cart",
+        });
+    }
+    catch (error) {
+        console.log(`AMADEUS API: `, (_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data);
+        return res.status(500).json({
+            message: "Error occurred while emptying cart",
+            data: error === null || error === void 0 ? void 0 : error.message,
+        });
+    }
+});
+exports.emptyUserFlightCart = emptyUserFlightCart;
+// export const getUserCart = async (
+//   req: Request,
+//   res: Response
+// ): Promise<any> => {
+//   const { userId } = req.params;
+//   try {
+//     // Optional: Check if user exists (uncomment if needed)
+//     const user = await prisma.user.findUnique({ where: { id: userId } });
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+//     // Get all cart items for the user, ordered by creation date (latest first)
+//     const cartItems = await prisma.flightCart.findMany({
+//       where: { userId },
+//       orderBy: { createdAt: "desc" },
+//     });
+//     return res.status(200).json({
+//       message: "User cart fetched successfully",
+//       data: cartItems,
+//     });
+//   } catch (error: any) {
+//     console.error("Error fetching user cart:", error);
+//     return res.status(500).json({
+//       message: "Error occurred while fetching user cart",
+//       error: error.message,
+//     });
+//   }
+// };
 const bookFlight = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     try {
