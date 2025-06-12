@@ -18,6 +18,8 @@ import {
   getAirlineDetailsEndpoint,
   getAirlinesByAirport,
   getAirlinesByMultipleLocations,
+  getFlightOffersRandom,
+  getFlightOfferDetails,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
 
@@ -42,6 +44,8 @@ router.route("/airport-details").get(getAirportDetails); // Working
 router.route("/airline-details").get(getAirlineDetailsEndpoint); // Working
 router.route("/airport-airlines").get(getAirlinesByAirport); // Working
 router.route("/airlines-by-airports").get(getAirlinesByMultipleLocations); //
+router.route("/flight-offers").get(getFlightOffersRandom); //
+router.route("/flight-offer-details").post(getFlightOfferDetails); //
 
 // router.route("/get-all-bookings").get(getAllBookings)
 // router.route("/booking-with-addons").post(bookFlightWithAddons);

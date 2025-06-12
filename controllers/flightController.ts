@@ -13,7 +13,14 @@ const baseURL: string = "https://test.api.amadeus.com";
 const prisma = new PrismaClient();
 
 export async function searchFlights(req: Request, res: Response): Promise<any> {
-  const { origin, destination, adults, departureDate, keyword } = req.query;
+  const {
+    origin,
+    destination,
+    adults,
+    departureDate,
+    keyword,
+    currency = "NGN",
+  } = req.query;
 
   try {
     const token = await getAmadeusToken();
@@ -84,7 +91,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       destinationLocationCode: destinationIata,
       adults: adultsNum,
       departureDate,
-      currencyCode: "NGN",
+      currencyCode: currency,
       max: 7,
     };
 
@@ -1521,5 +1528,153 @@ export async function getAirlinesByMultipleLocations(
       error: "Failed to fetch airlines for the provided locations",
       details: error.response?.data || error.message,
     });
+  }
+}
+
+// Fallback random IATA codes if input invalid or missing
+const fallbackOrigins = [
+  "JFK", // New York - John F. Kennedy
+  "LHR", // London - Heathrow
+  "CDG", // Paris - Charles de Gaulle
+  "FRA", // Frankfurt
+  "DXB", // Dubai
+  "NRT", // Tokyo - Narita
+  "HKG", // Hong Kong
+  "YYZ", // Toronto - Pearson
+  "ORD", // Chicago O'Hare
+  "ATL", // Atlanta
+  "ICN", // Seoul - Incheon
+  "MAD", // Madrid - Barajas
+  "GRU", // São Paulo - Guarulhos
+  "JNB", // Johannesburg - OR Tambo
+  "DEL", // Delhi - Indira Gandhi
+];
+
+const fallbackDestinations = [
+  "LAX", // Los Angeles
+  "AMS", // Amsterdam - Schiphol
+  "HND", // Tokyo - Haneda
+  "SIN", // Singapore - Changi
+  "SYD", // Sydney
+  "BKK", // Bangkok - Suvarnabhumi
+  "SFO", // San Francisco
+  "MIA", // Miami
+  "MEX", // Mexico City
+  "BCN", // Barcelona - El Prat
+  "MUC", // Munich
+  "KUL", // Kuala Lumpur
+  "DOH", // Doha - Hamad
+  "IST", // Istanbul
+  "CAI", // Cairo International
+];
+
+function getRandomFromArray(arr: string[]) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+export async function getFlightOffersRandom(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const token = await getAmadeusToken();
+
+    let { origin, destination, adults, departureDate } = req.query;
+
+    // Use fallback random IATA codes if missing or invalid
+    if (!origin || typeof origin !== "string" || origin.length !== 3) {
+      origin = getRandomFromArray(fallbackOrigins);
+    }
+    if (
+      !destination ||
+      typeof destination !== "string" ||
+      destination.length !== 3
+    ) {
+      destination = getRandomFromArray(fallbackDestinations);
+    }
+    const adultsNum =
+      adults && !isNaN(Number(adults)) && Number(adults) > 0
+        ? Number(adults)
+        : 1;
+
+    // Use today's date + 7 days if no valid departureDate
+    const today = new Date();
+    const defaultDeparture = new Date(today.setDate(today.getDate() + 7))
+      .toISOString()
+      .split("T")[0];
+    if (
+      !departureDate ||
+      typeof departureDate !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)
+    ) {
+      departureDate = defaultDeparture;
+    }
+
+    // Build params for GET flight offers search
+    const params = {
+      originLocationCode: origin.toUpperCase(),
+      destinationLocationCode: destination.toUpperCase(),
+      departureDate,
+      adults: adultsNum,
+      max: 9, // limit to 9 offers
+      currencyCode: "USD",
+    };
+
+    const response: any = await axios.get(
+      `${baseURL}/v2/shopping/flight-offers`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      }
+    );
+
+    const offers = response.data.data || [];
+
+    // Return flight offers even if random inputs used
+    return res.status(200).json({ data: offers });
+  } catch (error: any) {
+    console.error(
+      "Amadeus flight offers error:",
+      error.response?.data || error.message
+    );
+    return res.status(500).json({ error: "Failed to fetch flight offers" });
+  }
+}
+
+export async function getFlightOfferDetails(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { flightOffer } = req.body;
+
+    if (!flightOffer) {
+      return res
+        .status(400)
+        .json({ error: "Missing flightOffer in request body" });
+    }
+
+    const token = await getAmadeusToken();
+
+    const response = await axios.post(
+      `${baseURL}/v2/shopping/flight-offers/pricing`,
+      flightOffer,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return res.status(200).json(response.data);
+  } catch (error: any) {
+    console.error(
+      "Error fetching flight offer details:",
+      error.response?.data || error.message
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch flight offer details" });
   }
 }
