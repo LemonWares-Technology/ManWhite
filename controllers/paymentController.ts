@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { Stripe } from "stripe";
 import env from "dotenv";
+import { sendPaymentSuccessEmail } from "../config/emailServices";
 env.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -87,20 +88,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL!;
 //   }
 // };
 
-
-
 export const initializePayment = async (
   req: Request,
   res: Response
 ): Promise<any> => {
   try {
-    const {
-      amount,
-      email,
-      bookingData,
-      currency,
-      baseAmountNGN,
-    } = req.body;
+    const { amount, email, bookingData, currency, baseAmountNGN } = req.body;
 
     if (!amount || !email || !currency) {
       return res.status(400).json({
@@ -110,11 +103,13 @@ export const initializePayment = async (
     }
 
     // Validate currency
-    const supportedCurrencies = ['NGN', 'USD'];
+    const supportedCurrencies = ["NGN", "USD"];
     if (!supportedCurrencies.includes(currency)) {
       return res.status(400).json({
         status: "error",
-        message: `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(", ")}`,
+        message: `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(
+          ", "
+        )}`,
       });
     }
 
@@ -126,9 +121,9 @@ export const initializePayment = async (
     // Determine payment options based on currency
     const getPaymentOptions = (curr: string) => {
       switch (curr) {
-        case 'USD':
+        case "USD":
           return "card"; // International cards for foreign currencies
-        case 'NGN':
+        case "NGN":
         default:
           return "card,banktransfer,ussd"; // More options for NGN
       }
@@ -170,7 +165,7 @@ export const initializePayment = async (
     );
 
     // Return the payment link and configuration
-    console.log(`Currency BE: `,currency)
+    console.log(`Currency BE: `, currency);
     return res.status(200).json({
       status: "success",
       data: {
@@ -180,7 +175,6 @@ export const initializePayment = async (
         currency: currency,
         paymentLink: response.data.data.link,
       },
-
     });
   } catch (error: any) {
     console.error(
@@ -245,58 +239,64 @@ export const initializeStripePayment = async (
 };
 
 // Verifying flutterwave payment
-export const verifyFlutterwavePayment = async (
+// Updated verify payment function with email integration
+export const verifyFlutterwavePaymentWithEmail = async (
   req: Request,
   res: Response
 ): Promise<any> => {
-  try {
-    // You can receive tx_ref as a query parameter or in the body
-    const tx_ref = req.query.tx_ref || req.body.tx_ref;
-
-    if (!tx_ref) {
-      return res.status(400).json({
-        status: "error",
-        message: "Missing required parameter: tx_ref",
-      });
-    }
-
-    // Verify the transaction using Flutterwave's API
-    const response: any = await axios.get(
-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`,
-      {
-        headers: {
-          Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
-        },
-      }
-    );
-
-    const paymentData = response.data?.data;
-
-    if (
-      response.data.status === "success" &&
-      paymentData?.status === "successful"
-    ) {
-      return res.status(200).json({
-        status: "success",
-        verified: true,
-        paymentData,
-      });
-    } else {
-      return res.status(400).json({
-        status: "error",
-        verified: false,
-        message: "Payment not successful or not found",
-        paymentData,
-      });
-    }
-  } catch (error: any) {
-    console.error("Payment verification error:", error.response?.data || error);
-    return res.status(500).json({
-      status: "error",
-      message: "Error verifying payment",
-      error: error.response?.data?.message || error.message,
-    });
-  }
+  // try {
+  //   const tx_ref = req.query.tx_ref || req.body.tx_ref;
+  //   if (!tx_ref) {
+  //     return res.status(400).json({
+  //       status: "error",
+  //       message: "Missing required parameter: tx_ref",
+  //     });
+  //   }
+  //   // Verify the transaction using Flutterwave's API
+  //   const response: any = await axios.get(
+  //     `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`,
+  //     {
+  //       headers: {
+  //         Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+  //       },
+  //     }
+  //   );
+  //   const paymentData = response.data?.data;
+  //   if (
+  //     response.data.status === "success" &&
+  //     paymentData?.status === "successful"
+  //   ) {
+  //     // Send confirmation email
+  //     try {
+  //       await sendPaymentSuccessEmail(
+  //         paymentData,
+  //         paymentData.meta?.bookingData
+  //       );
+  //     } catch (emailError) {
+  //       console.error("Failed to send confirmation email:", emailError);
+  //       // Don't fail the entire request if email fails
+  //     }
+  //     return res.status(200).json({
+  //       status: "success",
+  //       verified: true,
+  //       paymentData,
+  //     });
+  //   } else {
+  //     return res.status(400).json({
+  //       status: "error",
+  //       verified: false,
+  //       message: "Payment not successful or not found",
+  //       paymentData,
+  //     });
+  //   }
+  // } catch (error: any) {
+  //   console.error("Payment verification error:", error.response?.data || error);
+  //   return res.status(500).json({
+  //     status: "error",
+  //     message: "Error verifying payment",
+  //     error: error.response?.data?.message || error.message,
+  //   });
+  // }
 };
 
 // Verifying stipe payment
