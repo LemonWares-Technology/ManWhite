@@ -1249,7 +1249,6 @@ async function getAirlineDetails(iataCode: string, token: string) {
   );
 
   if (response.data && response.data.data && response.data.data.length > 0) {
-
     return response.data.data[0]; // airline details object
   }
   return null;
@@ -1530,45 +1529,101 @@ export async function getAirlinesByMultipleLocations(
 }
 
 // Fallback random IATA codes if input invalid or missing
-const fallbackOrigins = [
-  "JFK", // New York - John F. Kennedy
-  "LHR", // London - Heathrow
-  "CDG", // Paris - Charles de Gaulle
-  "FRA", // Frankfurt
-  "DXB", // Dubai
-  "NRT", // Tokyo - Narita
-  "HKG", // Hong Kong
-  "YYZ", // Toronto - Pearson
-  "ORD", // Chicago O'Hare
-  "ATL", // Atlanta
-  "ICN", // Seoul - Incheon
-  "MAD", // Madrid - Barajas
-  "GRU", // São Paulo - Guarulhos
-  "JNB", // Johannesburg - OR Tambo
-  "DEL", // Delhi - Indira Gandhi
-];
-
-const fallbackDestinations = [
-  "LAX", // Los Angeles
-  "AMS", // Amsterdam - Schiphol
-  "HND", // Tokyo - Haneda
-  "SIN", // Singapore - Changi
-  "SYD", // Sydney
-  "BKK", // Bangkok - Suvarnabhumi
-  "SFO", // San Francisco
-  "MIA", // Miami
-  "MEX", // Mexico City
-  "BCN", // Barcelona - El Prat
-  "MUC", // Munich
-  "KUL", // Kuala Lumpur
-  "DOH", // Doha - Hamad
-  "IST", // Istanbul
-  "CAI", // Cairo International
-];
+const fallbackOrigins = ["JFK", "LHR", "CDG", "FRA", "DXB", "NRT", "HKG", "YYZ", "ORD", "ATL", "ICN", "MAD", "GRU", "JNB", "DEL"];
+const fallbackDestinations = ["LAX", "AMS", "HND", "SIN", "SYD", "BKK", "SFO", "MIA", "MEX", "BCN", "MUC", "KUL", "DOH", "IST", "CAI"];
 
 function getRandomFromArray(arr: string[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
+
+const UNKNOWN_LOCATION_REPLACEMENT = "Unknown Location";
+
+// Fetch city name or fallback to IATA code or replacement string
+async function getCityOrFallback(iataCode: string, token: string): Promise<string> {
+  const replacement = "Unknown Location";
+  if (!iataCode) return replacement;
+
+  try {
+    const response:any = await axios.get(`${baseURL}/v1/reference-data/locations`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        keyword: iataCode,
+        subType: "AIRPORT",
+        "page[limit]": 1,
+      },
+    });
+
+    const location = response.data.data?.[0];
+    if (location) {
+      // Use cityName if available and non-empty, else use iataCode
+      const cityName = location.address?.cityName;
+      if (cityName && cityName.trim().length > 0) {
+        return cityName;
+      }
+      // If cityName missing or empty, fallback to iataCode if valid
+      if (iataCode && iataCode.trim().length === 3) {
+        return iataCode;
+      }
+    }
+    return replacement;
+  } catch (error:any) {
+    console.error(`Failed to fetch city for IATA code ${iataCode}:`, error.message);
+    return replacement;
+  }
+}
+
+// Enrich flight offers with fromCity and toCity fields
+async function enrichFlightOffersWithLocations(offers: any[], token: string) {
+  const cache = new Map<string, string>();
+
+  async function getCachedCityOrFallback(iata: string): Promise<string> {
+    if (!cache.has(iata)) {
+      const cityOrFallback = await getCityOrFallback(iata, token);
+      cache.set(iata, cityOrFallback);
+    }
+    return cache.get(iata)!;
+  }
+
+  return Promise.all(
+    offers.map(async (offer) => {
+      const itinerary = offer.itineraries?.[0];
+      const segment = itinerary?.segments?.[0];
+      const fromIata = segment?.departure?.iataCode;
+      const toIata = segment?.arrival?.iataCode;
+
+      let fromCity = fromIata ? await getCachedCityOrFallback(fromIata) : "Unknown Location";
+      let toCity = toIata ? await getCachedCityOrFallback(toIata) : "Unknown Location";
+
+      // If city is "Unknown Location", replace with IATA code if available
+      if (fromCity === "Unknown Location" && fromIata) {
+        fromCity = fromIata;
+      }
+      if (toCity === "Unknown Location" && toIata) {
+        toCity = toIata;
+      }
+
+      return {
+        ...offer,
+        fromCity,
+        toCity,
+      };
+    })
+  );
+}
+
+// Remove duplicate flight offers by unique 'id'
+function removeDuplicateOffers(offers: any[]): any[] {
+  const seen = new Set<string>();
+  return offers.filter((offer) => {
+    if (!offer.id) return true; // Keep if no id (optional)
+    if (seen.has(offer.id)) {
+      return false; // Duplicate found, filter out
+    }
+    seen.add(offer.id);
+    return true;
+  });
+}
+
 
 export async function getFlightOffersRandom(
   req: Request,
@@ -1577,64 +1632,52 @@ export async function getFlightOffersRandom(
   try {
     const token = await getAmadeusToken();
 
-    let { origin, destination, adults, departureDate } = req.query;
+    let { origin, destination, adults, departureDate, currencyCode } = req.query;
 
-    // Use fallback random IATA codes if missing or invalid
     if (!origin || typeof origin !== "string" || origin.length !== 3) {
       origin = getRandomFromArray(fallbackOrigins);
     }
-    if (
-      !destination ||
-      typeof destination !== "string" ||
-      destination.length !== 3
-    ) {
+    if (!destination || typeof destination !== "string" || destination.length !== 3) {
       destination = getRandomFromArray(fallbackDestinations);
     }
-    const adultsNum =
-      adults && !isNaN(Number(adults)) && Number(adults) > 0
-        ? Number(adults)
-        : 1;
+    const adultsNum = adults && !isNaN(Number(adults)) && Number(adults) > 0 ? Number(adults) : 1;
 
-    // Use today's date + 7 days if no valid departureDate
     const today = new Date();
-    const defaultDeparture = new Date(today.setDate(today.getDate() + 7))
-      .toISOString()
-      .split("T")[0];
-    if (
-      !departureDate ||
-      typeof departureDate !== "string" ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)
-    ) {
+    const defaultDeparture = new Date(today.setDate(today.getDate() + 7)).toISOString().split("T")[0];
+    if (!departureDate || typeof departureDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
       departureDate = defaultDeparture;
     }
 
-    // Build params for GET flight offers search
+    if (!currencyCode || typeof currencyCode !== "string" || currencyCode.length !== 3) {
+      currencyCode = "USD";
+    }
+
     const params = {
       originLocationCode: origin.toUpperCase(),
       destinationLocationCode: destination.toUpperCase(),
       departureDate,
       adults: adultsNum,
-      max: 9, // limit to 9 offers
-      currencyCode: "USD",
+      max: 6,
+      currencyCode: currencyCode.toUpperCase(),
     };
 
-    const response: any = await axios.get(
-      `${baseURL}/v2/shopping/flight-offers`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        params,
-      }
-    );
+    const response: any = await axios.get(`${baseURL}/v2/shopping/flight-offers`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    });
 
-    const offers = response.data.data || [];
+const offers = response.data.data || [];
 
-    // Return flight offers even if random inputs used
-    return res.status(200).json({ data: offers });
+// Deduplicate offers by id
+const uniqueOffers = removeDuplicateOffers(offers);
+
+const enrichedOffers = await enrichFlightOffersWithLocations(uniqueOffers, token);
+
+return res.status(200).json({ data: enrichedOffers });
+
+    return res.status(200).json({ data: enrichedOffers });
   } catch (error: any) {
-    console.error(
-      "Amadeus flight offers error:",
-      error.response?.data || error.message
-    );
+    console.error("Amadeus flight offers error:", error.response?.data || error.message);
     return res.status(500).json({ error: "Failed to fetch flight offers" });
   }
 }
