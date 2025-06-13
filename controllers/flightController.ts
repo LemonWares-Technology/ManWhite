@@ -1249,7 +1249,7 @@ async function getAirlineDetails(iataCode: string, token: string) {
   );
 
   if (response.data && response.data.data && response.data.data.length > 0) {
-    console.log(`response`, response.data.data);
+
     return response.data.data[0]; // airline details object
   }
   return null;
@@ -1274,8 +1274,6 @@ export async function getAirlineDetailsEndpoint(
     if (!airlineDetails) {
       return res.status(404).json({ error: "Airline not found" });
     }
-
-    console.log(`airlineDetails`, airlineDetails);
 
     return res.status(200).json({
       iataCode,
