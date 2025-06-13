@@ -8,26 +8,17 @@ const baseURL: string = "https://test.api.amadeus.com";
 
 const prisma = new PrismaClient();
 
+// Search Endpoint working
 export const searchHotels = async (
   req: Request,
   res: Response
 ): Promise<any> => {
   try {
-    const { keyword, subType } = req.query;
+    const { cityCode } = req.query;
 
-    if (!keyword || !subType) {
+    if (!cityCode) {
       return res.status(400).json({
-        message:
-          "Missing required query parameters: keyword and subType are required.",
-      });
-    }
-
-    const allowedSubTypes = ["HOTEL_LEISURE", "HOTEL_GDS"];
-    if (!allowedSubTypes.includes(String(subType).toUpperCase())) {
-      return res.status(400).json({
-        message: `Invalid subType. Allowed values are ${allowedSubTypes.join(
-          ", "
-        )}`,
+        message: "Missing required query parameters: CityCode is required.",
       });
     }
 
@@ -35,20 +26,18 @@ export const searchHotels = async (
     console.log("Token:", token); // Log the token for debugging
 
     const hotelResponse = await axios.get(
-      `${baseURL}/v1/reference-data/locations/hotels`,
+      `${baseURL}/v1/reference-data/locations/hotels/by-city`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
         },
         params: {
-          subType,
-          keyword,
+          cityCode,
         },
       }
     );
 
-    console.log("Keyword:", keyword); // Log the keyword for debugging
-    console.log("SubType:", subType); // Log the subType for debugging
+    console.log("Keyword:", cityCode); // Log the keyword for debugging
 
     return res.status(200).json({
       message: "Hotels fetched successfully",
@@ -66,6 +55,124 @@ export const searchHotels = async (
   }
 };
 
+export async function searchOneHotelDetail(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { hotelIds } = req.query;
+
+    if (!hotelIds) {
+      return res.status(400).json({
+        message: `Missing required query parameters: HotelIds is required.`,
+      });
+    }
+
+    const token = await getAmadeusToken();
+
+    const hotelResponse = await axios.get(
+      `${baseURL}/v1/reference-data/locations/hotels/by-hotels`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        params: {
+          hotelIds,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: `Hotel details fetched successfully`,
+      data: hotelResponse?.data,
+    });
+  } catch (error: any) {
+    console.error(`Error:`, error);
+
+    return res.status(500).json({
+      error: `Internal server error`,
+    });
+  }
+}
+
+export async function getOneHotelOffer(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { hotelIds } = req.query;
+
+    if (!hotelIds) {
+      return res.status(400).json({
+        error: `Missing required query parameters: HotelIds is required.`,
+      });
+    }
+
+    const token = await getAmadeusToken();
+
+    const hotelResponse = await axios.get(
+      `${baseURL}/v3/shopping/hotel-offers`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        params: {
+          hotelIds,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: `Hotel offers gotten successfully`,
+      data: hotelResponse?.data,
+    });
+  } catch (error: any) {
+    console.error(`Error: `, error);
+
+    return res.status(500).json({
+      error: `Internal server error`,
+    });
+  }
+}
+
+export async function getHotelRating(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { hotelIds } = req.query;
+
+    if (!hotelIds) {
+      return res.status(400).json({
+        error: `Missing required query parameters: HotelIds is required.`,
+      });
+    }
+
+    const token = await getAmadeusToken();
+    const hotelResponse = await axios.get(
+      `${baseURL}/v2/e-reputation/hotel-sentiments`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        params: {
+          hotelIds,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: `Hotel ratings gotten successfully`,
+      data: hotelResponse?.data,
+    });
+  } catch (error: any) {
+    console.error(`Error:`, error);
+
+    return res.status(500).json({
+      error: `Internal server error`,
+    });
+  }
+}
 
 export const createCustomHotels = async (
   req: Request,
@@ -114,17 +221,15 @@ export const createCustomHotels = async (
         email,
         website,
         rating: rating ? parseFloat(rating) : undefined,
-        price: price? parseFloat(price) : undefined,
-        images: imageUrls
+        price: price ? parseFloat(price) : undefined,
+        images: imageUrls,
       },
     });
 
-
     return res.status(201).json({
-      message : `Hotel created successfully`,
+      message: `Hotel created successfully`,
       data: hotel,
-    })
-
+    });
   } catch (error: any) {
     console.error(`Error:`, error);
 
@@ -134,85 +239,80 @@ export const createCustomHotels = async (
   }
 };
 
-
-export async function getAllHotelDetails  (req: Request, res: Response): Promise<any> {
+export async function getAllHotelDetails(
+  req: Request,
+  res: Response
+): Promise<any> {
   try {
-    
     const hotels = await prisma.hotel.findMany();
 
+    if (!hotels) {
+      return res.status(404).json({ error: `Hotels not found ` });
+    }
 
-  if(!hotels){
-    return res.status(404).json({error:`Hotels not found `})
-  }
-
-  return res.status(200).json({
-    message: `Hotels successfully retrieved`,
-    data: hotels
-  })
-
-
+    return res.status(200).json({
+      message: `Hotels successfully retrieved`,
+      data: hotels,
+    });
   } catch (error: any) {
     console.error(`Error:`, error);
 
     return res.status(500).json({
       error: `Internal server error`,
-    })
+    });
   }
 }
 
-
-export async function getSingleHotelDetailsById  (req: Request, res: Response): Promise<any> {
+export async function getSingleHotelDetailsById(
+  req: Request,
+  res: Response
+): Promise<any> {
   try {
+    const { hotelId } = req.params;
 
-    const {hotelId} = req.params;
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
 
-    const hotel = await prisma.hotel.findUnique({where: {id: hotelId}});
-
-    if(!hotel){
-      return res.status(404).json({error: `Hotel does not exist`})
+    if (!hotel) {
+      return res.status(404).json({ error: `Hotel does not exist` });
     }
-    
 
     return res.status(200).json({
       message: `Hotel's details gotten successfully`,
       data: hotel,
-    })
-
+    });
   } catch (error: any) {
     console.error(`Response:`, error);
 
     return res.status(500).json({
-      message: `Internal server error`
-    })
+      message: `Internal server error`,
+    });
   }
 }
 
-
-export async function deleteSingleHotel (req: Request, res: Response): Promise<any> {
+export async function deleteSingleHotel(
+  req: Request,
+  res: Response
+): Promise<any> {
   try {
+    const { hotelId } = req.params;
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
 
-    const {hotelId} = req.params;
-    const hotel = await prisma.hotel.findUnique({where: {id: hotelId}});
-
-    if(!hotel){
+    if (!hotel) {
       return res.status(404).json({
-        error: `Hotel not found`
-      })
+        error: `Hotel not found`,
+      });
     }
 
-
-    await prisma.hotel.delete({where: {id: hotelId}});
+    await prisma.hotel.delete({ where: { id: hotelId } });
 
     return res.status(200).json({
-      message: `Hotel deleted successfully`
-    })
-    
+      message: `Hotel deleted successfully`,
+    });
   } catch (error: any) {
     console.error(`Response:`, error);
 
     return res.status(500).json({
       error: `Internal server error`,
-    })
+    });
   }
 }
-
