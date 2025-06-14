@@ -1,4 +1,7 @@
 import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import env from "dotenv";
+env.config();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -68,4 +71,41 @@ export async function getCachedLocationDetails(
     );
     return null;
   }
+}
+
+// Flutterwave handler
+export async function initiateHotelBookingTemplate(
+  amount: number,
+  currency: string,
+  customerEmail: string
+) {
+  const paymentData = {
+    tx_ref: `hotel_${uuidv4}`,
+    amount,
+    currency,
+    redirect_url: `${process.env.FRONTEND_URL}/success`,
+    payment_options: `card,bank`,
+    customers: {
+      email: customerEmail,
+      name: `Hotel Guest`,
+    },
+    customizations: {
+      title: `Hotel Booking Payment`,
+      description: `Payment for hotel booking`,
+    },
+  };
+
+  const response = await axios.post(
+    `https://api.flutterwave.com/v3/payments`,
+    paymentData,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.FLUTTER_SECRET}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+
+  return response?.data;
 }

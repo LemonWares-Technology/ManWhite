@@ -1,32 +1,19 @@
 import express from "express";
 import {
-  createCustomHotels,
-  deleteSingleHotel,
-  getAllHotelDetails,
+  bookHotel,
   getHotelRating,
-  getOneHotelOffer,
+  getOfferPricing,
+  hotelAutocomplete,
+  hotelOfferSearch,
   searchHotels,
-  searchOneHotelDetail,
 } from "../controllers/hotelController";
-import multer from "multer";
-
-const storage: any = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: { files: 7, fileSize: 5 * 1024 * 1024 },
-});
 
 const router = express.Router();
-router.route("/search-hotel").get(searchHotels); // Working perfectly;
-router.route("/search-hotel-by-id").get(searchOneHotelDetail); // Working perfectly
-router.route("/search-hotel-offer").get(getOneHotelOffer); // Working perfectly
-router.route("/search-hotel-ratings").get(getHotelRating); // Working perfectly
-
-router
-  .route("/create-hotel")
-  .post(upload.array("images", 7), createCustomHotels); // Working
-router.route("/get").get(getAllHotelDetails); // Working
-// router.route("/get/hotels/:hotelId").get(getSingleHotelDetailsById); // Working
-router.route("/delete-hotel/:hotelId").delete(deleteSingleHotel); // Working
+router.route("/search-hotel").get(searchHotels); // Working perfectly
+router.route("/hotel-autocomplete").get(hotelAutocomplete); // Working perfectly
+router.route("/hotel-offer-search").get(hotelOfferSearch); // Working perfectly
+router.route("/hotel-offer-search/:offerId").get(getOfferPricing); // Working perfectly
+router.route("/ratings").get(getHotelRating) // Working perfectly
+router.route("/book-hotel").post(bookHotel); // Working perfectly
 
 export default router;

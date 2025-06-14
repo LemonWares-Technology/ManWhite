@@ -1536,7 +1536,6 @@ function getRandomFromArray(arr: string[]) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-const UNKNOWN_LOCATION_REPLACEMENT = "Unknown Location";
 
 // Fetch city name or fallback to IATA code or replacement string
 async function getCityOrFallback(iataCode: string, token: string): Promise<string> {
