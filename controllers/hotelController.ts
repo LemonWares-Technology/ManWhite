@@ -196,6 +196,8 @@ export async function hotelOfferSearch(
       roomQuantity,
     } = req.query;
 
+
+
     // Validate required parameters
     if (!hotelIds) {
       return res.status(400).json({
@@ -359,7 +361,429 @@ export async function hotelOfferSearch(
   }
 }
 
+// export async function searchHotelsAndOffers(
+//   req: Request,
+//   res: Response
+// ): Promise<any> {
+//   try {
+//     // Extract query parameters
+//     const {
+//       cityCode,
+//       checkInDate,
+//       checkOutDate,
+//       adults,
+//       children,
+//       rooms,
+//       currency,
+//       roomQuantity,
+//     } = req.query;
+
+//     console.log("Received combined search request with params:", req.query);
+
+//     // Validate cityCode
+//     if (!cityCode || typeof cityCode !== "string") {
+//       console.warn("Missing or invalid cityCode parameter");
+//       return res.status(400).json({
+//         error: "Missing or invalid required parameter: cityCode",
+//       });
+//     }
+
+//     // Validate checkInDate and checkOutDate presence and format
+//     if (!checkInDate || !checkOutDate) {
+//       console.warn("Missing checkInDate or checkOutDate parameter");
+//       return res.status(400).json({
+//         error: "Missing required parameters: checkInDate and checkOutDate are required",
+//       });
+//     }
+
+//     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+//     if (!dateRegex.test(checkInDate as string) || !dateRegex.test(checkOutDate as string)) {
+//       console.warn("Invalid date format for checkInDate or checkOutDate");
+//       return res.status(400).json({
+//         error: "Invalid date format. Use YYYY-MM-DD format",
+//       });
+//     }
+
+//     if (new Date(checkInDate as string) >= new Date(checkOutDate as string)) {
+//       console.warn("checkInDate must be before checkOutDate");
+//       return res.status(400).json({
+//         error: "checkInDate must be before checkOutDate",
+//       });
+//     }
+
+//     // Get Amadeus API token
+//     console.log("Fetching Amadeus API token...");
+//     const token = await getAmadeusToken();
+//     console.log("Amadeus token acquired");
+
+//     // Step 1: Fetch hotels by cityCode
+//     console.log(`Fetching hotels for cityCode: ${cityCode}`);
+//     const hotelResponse:any = await axios.get(
+//       `${baseURL}/v1/reference-data/locations/hotels/by-city`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//         },
+//         params: { cityCode },
+//       }
+//     );
+
+//     // After fetching hotels by cityCode
+// const hotels = hotelResponse.data?.data || [];
+// console.log(`Found ${hotels.length} hotels for cityCode ${cityCode}`);
+
+// if (hotels.length === 0) {
+//   console.info("No hotels found for the specified cityCode");
+//   return res.status(200).json({
+//     message: "No hotels found for the given cityCode",
+//     data: [],
+//   });
+// }
+
+// // Limit the number of hotels to 30 to reduce load
+// const limitedHotels = hotels.slice(0, 30);
+// console.log(`Limiting to ${limitedHotels.length} hotels for offer search`);
+
+// // Extract hotelIds from limited hotels only
+// const hotelIdsArray = limitedHotels
+//   .map((hotel: any) => hotel.hotelId)
+//   .filter((id: string | undefined) => !!id);
+
+// if (hotelIdsArray.length === 0) {
+//   console.info("No hotelIds found in the limited hotels data");
+//   return res.status(200).json({
+//     message: "No hotelIds found for hotels in the specified city",
+//     data: [],
+//   });
+// }
+
+// console.log(`Extracted ${hotelIdsArray.length} hotelIds from limited hotels`);
+
+
+//     // Step 2: Fetch hotel offers for these hotelIds
+//     const params: any = {
+//       hotelIds: hotelIdsArray.join(','), // Comma-separated hotelIds string
+//       checkInDate,
+//       checkOutDate,
+//       adults: adults || 1,
+//     };
+
+//     // Add optional parameters if provided
+//     if (children) params.children = children;
+//     if (rooms) params.rooms = rooms;
+//     if (currency) params.currency = currency;
+//     if (roomQuantity) params.roomQuantity = roomQuantity;
+
+//     console.log("Fetching hotel offers with params:", params);
+//     const offersResponse:any = await axios.get(
+//       `${baseURL}/v3/shopping/hotel-offers`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//           "Content-Type": "application/json",
+//         },
+//         params,
+//         timeout: 30000,
+//       }
+//     );
+
+//     const offers = offersResponse.data?.data || [];
+//     console.log(`Received ${offers.length} hotel offers`);
+
+//     // Format offers for frontend consumption
+//     const formattedOffers = offers.map((hotel: any) => ({
+//       hotelId: hotel.hotel?.hotelId,
+//       hotelName: hotel.hotel?.name,
+//       hotelRating: hotel.hotel?.rating,
+//       address: {
+//         cityCode: hotel.hotel?.cityCode,
+//         cityName: hotel.hotel?.address?.cityName,
+//         countryCode: hotel.hotel?.address?.countryCode,
+//         lines: hotel.hotel?.address?.lines,
+//         postalCode: hotel.hotel?.address?.postalCode,
+//       },
+//       contact: hotel.hotel?.contact,
+//       amenities: hotel.hotel?.amenities,
+//       offers:
+//         hotel.offers?.map((offer: any) => ({
+//           id: offer.id,
+//           checkInDate: offer.checkInDate,
+//           checkOutDate: offer.checkOutDate,
+//           roomQuantity: offer.roomQuantity,
+//           rateCode: offer.rateCode,
+//           rateFamilyEstimated: offer.rateFamilyEstimated,
+//           room: {
+//             type: offer.room?.type,
+//             typeEstimated: offer.room?.typeEstimated,
+//             description: offer.room?.description?.text,
+//           },
+//           guests: offer.guests,
+//           price: {
+//             currency: offer.price?.currency,
+//             base: offer.price?.base,
+//             total: offer.price?.total,
+//             variations: offer.price?.variations,
+//           },
+//           policies: {
+//             paymentType: offer.policies?.paymentType,
+//             cancellation: offer.policies?.cancellation,
+//           },
+//           self: offer.self,
+//         })) || [],
+//     }));
+
+//     console.log("Sending response with hotels and offers data");
+//     return res.status(200).json({
+//       message: "Hotels and offers retrieved successfully",
+//       hotelsCount: hotels.length,
+//       offersCount: formattedOffers.length,
+//       hotels,
+//       offers: formattedOffers,
+//       searchParams: {
+//         cityCode,
+//         checkInDate,
+//         checkOutDate,
+//         adults: adults || 1,
+//         ...(children && { children }),
+//         ...(rooms && { rooms }),
+//         ...(currency && { currency }),
+//       },
+//     });
+//   } catch (error: any) {
+//     console.error("Error fetching hotels and offers:", error.response?.data || error.message);
+
+//     if (error.response?.status === 400) {
+//       const errorDetails = error.response?.data?.errors?.[0];
+//       if (
+//         errorDetails?.code === 3664 ||
+//         errorDetails?.title?.includes("NO ROOMS AVAILABLE")
+//       ) {
+//         console.warn("No rooms available for the requested property and dates");
+//         return res.status(200).json({
+//           message: "Search completed successfully",
+//           data: [],
+//           availability: {
+//             status: "NO_ROOMS_AVAILABLE",
+//             hotelId:
+//               errorDetails?.source?.parameter?.split("=")?.[1] || "unknown",
+//             reason:
+//               "No rooms available at the requested property for the selected dates",
+//             suggestions: [
+//               "Try different dates",
+//               "Check nearby hotels",
+//               "Modify guest count",
+//               "Contact hotel directly for availability",
+//             ],
+//           },
+//         });
+//       }
+//       console.error("Failed to fetch hotel offers due to bad request");
+//       return res.status(500).json({
+//         error: "Failed to fetch hotel offers",
+//         ...(process.env.NODE_ENV === "development" && {
+//           details: error.message,
+//         }),
+//       });
+//     }
+
+//     return res.status(500).json({
+//       error: "An error occurred while fetching hotels and offers",
+//       ...(process.env.NODE_ENV === "development" && {
+//         details: error.message,
+//       }),
+//     });
+//   }
+// }
+
+
+
 /// Get Hotel Offer Details by ID
+
+export async function searchHotelsWithOffers(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    console.log("Received searchHotelsWithOffers request with query:", req.query);
+
+    const {
+      cityCode,
+      checkInDate,
+      checkOutDate,
+      adults,
+      children,
+      rooms,
+      currency,
+      roomQuantity,
+    } = req.query;
+
+    // Validate cityCode
+    if (!cityCode || typeof cityCode !== "string") {
+      console.warn("Validation failed: Missing or invalid cityCode");
+      return res.status(400).json({ error: "Missing or invalid cityCode" });
+    }
+
+    // Validate checkInDate and checkOutDate presence and format
+    if (!checkInDate || !checkOutDate) {
+      console.warn("Validation failed: Missing checkInDate or checkOutDate");
+      return res.status(400).json({ error: "Missing checkInDate or checkOutDate" });
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(checkInDate as string) || !dateRegex.test(checkOutDate as string)) {
+      console.warn("Validation failed: Dates not in YYYY-MM-DD format");
+      return res.status(400).json({ error: "Dates must be in YYYY-MM-DD format" });
+    }
+
+    if (new Date(checkInDate as string) >= new Date(checkOutDate as string)) {
+      console.warn("Validation failed: checkInDate is not before checkOutDate");
+      return res.status(400).json({ error: "checkInDate must be before checkOutDate" });
+    }
+
+    console.log("Validation passed for input parameters");
+
+    // Get Amadeus API token
+    console.log("Requesting Amadeus API token...");
+    const token = await getAmadeusToken();
+    console.log("Amadeus API token acquired");
+
+    // Step 1: Fetch hotels by cityCode
+    console.log(`Fetching hotels for cityCode: ${cityCode}`);
+    const hotelResponse:any = await axios.get(
+      `${baseURL}/v1/reference-data/locations/hotels/by-city`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { cityCode },
+      }
+    );
+
+    const hotels = hotelResponse.data?.data || [];
+    console.log(`Fetched ${hotels.length} hotels for cityCode ${cityCode}`);
+
+    if (hotels.length === 0) {
+      console.info("No hotels found for the specified cityCode");
+      return res.status(200).json({ message: "No hotels found", data: [] });
+    }
+
+    // Limit hotels to 50 to control load
+    const limitedHotels = hotels.slice(0, 50);
+    console.log(`Limiting to ${limitedHotels.length} hotels for offer search`);
+
+    // Extract hotelIds
+    const hotelIds = limitedHotels
+      .map((hotel: any) => hotel.hotelId)
+      .filter((id: string | undefined) => !!id);
+
+    if (hotelIds.length === 0) {
+      console.info("No hotelIds found in limited hotels");
+      return res.status(200).json({ message: "No hotelIds found", data: [] });
+    }
+
+    console.log(`Extracted ${hotelIds.length} hotelIds`);
+
+    // Step 2: Fetch offers for hotelIds
+    const offerParams: any = {
+      hotelIds: hotelIds.join(","),
+      checkInDate,
+      checkOutDate,
+      adults: adults || 1,
+    };
+    if (children) offerParams.children = children;
+    if (rooms) offerParams.rooms = rooms;
+    if (currency) offerParams.currency = currency;
+    if (roomQuantity) offerParams.roomQuantity = roomQuantity;
+
+    console.log("Fetching hotel offers with parameters:", offerParams);
+    const offersResponse:any = await axios.get(
+      `${baseURL}/v3/shopping/hotel-offers`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        params: offerParams,
+        timeout: 30000,
+      }
+    );
+
+    const offersData = offersResponse.data?.data || [];
+    console.log(`Received ${offersData.length} hotels with offers`);
+
+    if (offersData.length === 0) {
+      console.info("No hotel offers available for the selected dates");
+      return res.status(200).json({
+        message: "No hotel offers available for the selected dates",
+        data: [],
+      });
+    }
+
+    // Format hotels with offers for response
+    const formattedHotelsWithOffers = offersData.map((hotel: any) => ({
+      hotelId: hotel.hotel?.hotelId,
+      hotelName: hotel.hotel?.name,
+      hotelRating: hotel.hotel?.rating,
+      address: {
+        cityCode: hotel.hotel?.cityCode,
+        cityName: hotel.hotel?.address?.cityName,
+        countryCode: hotel.hotel?.address?.countryCode,
+        lines: hotel.hotel?.address?.lines,
+        postalCode: hotel.hotel?.address?.postalCode,
+      },
+      contact: hotel.hotel?.contact,
+      amenities: hotel.hotel?.amenities,
+      offers:
+        hotel.offers?.map((offer: any) => ({
+          id: offer.id,
+          checkInDate: offer.checkInDate,
+          checkOutDate: offer.checkOutDate,
+          roomQuantity: offer.roomQuantity,
+          rateCode: offer.rateCode,
+          rateFamilyEstimated: offer.rateFamilyEstimated,
+          room: {
+            type: offer.room?.type,
+            typeEstimated: offer.room?.typeEstimated,
+            description: offer.room?.description?.text,
+          },
+          guests: offer.guests,
+          price: {
+            currency: offer.price?.currency,
+            base: offer.price?.base,
+            total: offer.price?.total,
+            variations: offer.price?.variations,
+          },
+          policies: {
+            paymentType: offer.policies?.paymentType,
+            cancellation: offer.policies?.cancellation,
+          },
+          self: offer.self,
+        })) || [],
+    }));
+
+    console.log("Sending response with hotels and offers");
+    return res.status(200).json({
+      message: "Hotels with offers retrieved successfully",
+      count: formattedHotelsWithOffers.length,
+      data: formattedHotelsWithOffers,
+      searchParams: {
+        cityCode,
+        checkInDate,
+        checkOutDate,
+        adults: adults || 1,
+        ...(children && { children }),
+        ...(rooms && { rooms }),
+        ...(currency && { currency }),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error in searchHotelsWithOffers:", error.response?.data || error.message);
+    return res.status(500).json({
+      error: "Failed to fetch hotels with offers",
+      details: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
+
 export async function getOfferPricing(
   req: Request,
   res: Response
