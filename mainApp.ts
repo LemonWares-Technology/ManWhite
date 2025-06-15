@@ -11,6 +11,7 @@ import hotelRoutes from "./routes/hotelRoute";
 import paymentRoutes from "./routes/paymentRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import marginRoutes from "./routes/marginRoutes";
+import tourRoutes from "./routes/toursRoutes";
 import passport from "passport";
 import env from "dotenv";
 env.config();
@@ -47,6 +48,7 @@ export const mainApp = (app: Application) => {
   app.use("/payment", paymentRoutes);
   app.use("/admin", adminRoutes);
   app.use("/margin", marginRoutes);
+  app.use("/tours", tourRoutes);
 
   app.get("/verify/:userId", (req: Request, res: Response) => {
     const userAgent = req.headers["user-agent"] || "";
