@@ -89,8 +89,6 @@ export async function hotelAutocomplete(
     //   // Include distance if search was location-based
     // }));
 
-
-
     return res.status(200).json({
       data: hotels,
       count: hotels.length,
@@ -351,6 +349,27 @@ export async function hotelOfferSearch(
           },
         });
       }
+
+      // Handle "ROOM OR RATE NOT FOUND" error (code 11226)
+      if (
+        errorDetails?.code === 11226 ||
+        errorDetails?.title === "ROOM OR RATE NOT FOUND"
+      ) {
+        return res.status(404).json({
+          error: "Room or rate not found for the specified hotel and dates.",
+          reason:
+            "The requested room type or rate code does not exist or is unavailable.",
+          suggestions: [
+            "Verify the hotel ID and room/rate parameters.",
+            "Try different dates or room configurations.",
+            "Contact support if the problem persists.",
+          ],
+          details:
+            process.env.NODE_ENV === "development" ? errorDetails : undefined,
+        });
+      }
+
+      // Default 400 error handler
       return res.status(500).json({
         error: "Failed to fetch hotel offers",
         ...(process.env.NODE_ENV === "development" && {
