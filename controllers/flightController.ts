@@ -1776,40 +1776,79 @@ export async function getFlightOffersRandom(
   }
 }
 
+// const flightPricingCache = new Map<string, any>();
+
 export async function getFlightOfferDetails(
   req: Request,
   res: Response
-): Promise<any> {
+): Promise<void> {
   try {
     const { flightOffer } = req.body;
 
-    if (!flightOffer) {
-      return res
-        .status(400)
-        .json({ error: "Missing flightOffer in request body" });
+    // Basic validation
+    if (!flightOffer || typeof flightOffer !== "object") {
+      res.status(400).json({ error: "Flight offer object is required" });
+      return;
     }
 
-    const token = await getAmadeusToken();
+    // Verify required fields
+    if (!flightOffer.id || !flightOffer.itineraries || !flightOffer.price) {
+      res.status(400).json({
+        error: "Invalid flight offer structure",
+        requiredFields: ["id", "itineraries", "price"],
+      });
+      return;
+    }
 
-    const response = await axios.post(
+    // Get Amadeus token
+    const token = await getAmadeusToken();
+    if (!token) {
+      res.status(500).json({ error: "Failed to authenticate with Amadeus" });
+      return;
+    }
+
+    // Prepare request body for Amadeus API
+    const requestBody = {
+      data: {
+        type: "flight-offers-pricing",
+        flightOffers: [flightOffer],
+      },
+    };
+
+    // Call Amadeus pricing API
+    const response: any = await axios.post(
       `${baseURL}/v2/shopping/flight-offers/pricing`,
-      flightOffer,
+      requestBody,
       {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
+        timeout: 10000,
       }
     );
 
-    return res.status(200).json(response.data);
+    // Return the priced flight offer
+    res.status(200).json(response.data.data);
   } catch (error: any) {
-    console.error(
-      "Error fetching flight offer details:",
-      error.response?.data || error.message
-    );
-    return res
-      .status(500)
-      .json({ error: "Failed to fetch flight offer details" });
+    console.error("Flight offer details error:", error.message);
+
+    // Handle Amadeus API errors
+    if (error.response?.data?.errors) {
+      const errors = error.response.data.errors
+        .map((err: any) => `${err.code}: ${err.detail}`)
+        .join("; ");
+      res.status(400).json({
+        error: "Amadeus API error",
+        details: errors,
+      });
+      return;
+    }
+
+    // Handle other errors
+    res.status(500).json({
+      error: "Failed to get flight details",
+      details: error.message,
+    });
   }
 }

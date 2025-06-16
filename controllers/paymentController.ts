@@ -148,7 +148,7 @@ export const initializePayment = async (
         customizations: {
           title: "Manwhit Areos Flight Booking",
           description: `Flight booking payment (${currency})`,
-          logo: "https://manwhitareos.web.app/logo.png",
+          logo: process.env.LOGO_URL,
         },
         meta: {
           bookingData: JSON.stringify(bookingData),
@@ -240,65 +240,100 @@ export const initializeStripePayment = async (
 
 // Verifying flutterwave payment
 // Updated verify payment function with email integration
+// 1. Route Definition (change to POST)
+
+// 2. Verification Function
 export const verifyFlutterwavePaymentWithEmail = async (
   req: Request,
   res: Response
-): Promise<any> => {
-  // try {
-  //   const tx_ref = req.query.tx_ref || req.body.tx_ref;
-  //   if (!tx_ref) {
-  //     return res.status(400).json({
-  //       status: "error",
-  //       message: "Missing required parameter: tx_ref",
-  //     });
-  //   }
-  //   // Verify the transaction using Flutterwave's API
-  //   const response: any = await axios.get(
-  //     `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`,
-  //     {
-  //       headers: {
-  //         Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
-  //       },
-  //     }
-  //   );
-  //   const paymentData = response.data?.data;
-  //   if (
-  //     response.data.status === "success" &&
-  //     paymentData?.status === "successful"
-  //   ) {
-  //     // Send confirmation email
-  //     try {
-  //       await sendPaymentSuccessEmail(
-  //         paymentData,
-  //         paymentData.meta?.bookingData
-  //       );
-  //     } catch (emailError) {
-  //       console.error("Failed to send confirmation email:", emailError);
-  //       // Don't fail the entire request if email fails
-  //     }
-  //     return res.status(200).json({
-  //       status: "success",
-  //       verified: true,
-  //       paymentData,
-  //     });
-  //   } else {
-  //     return res.status(400).json({
-  //       status: "error",
-  //       verified: false,
-  //       message: "Payment not successful or not found",
-  //       paymentData,
-  //     });
-  //   }
-  // } catch (error: any) {
-  //   console.error("Payment verification error:", error.response?.data || error);
-  //   return res.status(500).json({
-  //     status: "error",
-  //     message: "Error verifying payment",
-  //     error: error.response?.data?.message || error.message,
-  //   });
-  // }
-};
+): Promise<Response | any> => {
+  // Stronger return type
+  try {
+    // Validate input
+    const tx_ref = req.query.tx_ref || req.body.tx_ref;
 
+    if (!tx_ref || typeof tx_ref !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "VALIDATION_ERROR",
+        message: "Valid transaction reference is required",
+      });
+    }
+
+    // Verify transaction
+    const response: any = await axios.get(
+      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(
+        tx_ref
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+        },
+        timeout: 10000, // 10 second timeout
+      }
+    );
+
+    const paymentData = response.data?.data;
+
+    // Check payment status
+    if (
+      !paymentData ||
+      response.data.status !== "success" ||
+      paymentData.status !== "successful"
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "PAYMENT_FAILED",
+        message: "Payment verification failed or payment not successful",
+        data: paymentData || null,
+      });
+    }
+
+    // Async email sending (don't await)
+    sendPaymentSuccessEmail(paymentData, paymentData.meta?.bookingData).catch(
+      (error) => console.error("Email sending failed:", error)
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment verified successfully",
+      data: {
+        reference: paymentData.tx_ref,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        status: paymentData.status,
+        // Include only necessary fields
+      },
+    });
+  } catch (error: any) {
+    console.error("Payment verification error:", error);
+
+    // Handle different error types
+    if (error.response) {
+      // Flutterwave API error
+      return res.status(502).json({
+        success: false,
+        error: "GATEWAY_ERROR",
+        message: "Payment gateway error",
+        details: error.response.data?.message || "Flutterwave API error",
+      });
+    } else if (error.request) {
+      // No response received
+      return res.status(504).json({
+        success: false,
+        error: "NETWORK_ERROR",
+        message: "No response from payment gateway",
+      });
+    } else {
+      // Setup error
+      return res.status(500).json({
+        success: false,
+        error: "SERVER_ERROR",
+        message: "Internal server error during verification",
+      });
+    }
+  }
+};
 // Verifying stipe payment
 export const verifyStripePayment = async (
   req: Request,

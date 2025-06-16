@@ -194,8 +194,6 @@ export async function hotelOfferSearch(
       roomQuantity,
     } = req.query;
 
-
-
     // Validate required parameters
     if (!hotelIds) {
       return res.status(400).json({
@@ -478,7 +476,6 @@ export async function hotelOfferSearch(
 
 // console.log(`Extracted ${hotelIdsArray.length} hotelIds from limited hotels`);
 
-
 //     // Step 2: Fetch hotel offers for these hotelIds
 //     const params: any = {
 //       hotelIds: hotelIdsArray.join(','), // Comma-separated hotelIds string
@@ -614,8 +611,6 @@ export async function hotelOfferSearch(
 //   }
 // }
 
-
-
 /// Get Hotel Offer Details by ID
 
 export async function searchHotelsWithOffers(
@@ -623,7 +618,10 @@ export async function searchHotelsWithOffers(
   res: Response
 ): Promise<any> {
   try {
-    console.log("Received searchHotelsWithOffers request with query:", req.query);
+    console.log(
+      "Received searchHotelsWithOffers request with query:",
+      req.query
+    );
 
     const {
       cityCode,
@@ -645,18 +643,27 @@ export async function searchHotelsWithOffers(
     // Validate checkInDate and checkOutDate presence and format
     if (!checkInDate || !checkOutDate) {
       console.warn("Validation failed: Missing checkInDate or checkOutDate");
-      return res.status(400).json({ error: "Missing checkInDate or checkOutDate" });
+      return res
+        .status(400)
+        .json({ error: "Missing checkInDate or checkOutDate" });
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(checkInDate as string) || !dateRegex.test(checkOutDate as string)) {
+    if (
+      !dateRegex.test(checkInDate as string) ||
+      !dateRegex.test(checkOutDate as string)
+    ) {
       console.warn("Validation failed: Dates not in YYYY-MM-DD format");
-      return res.status(400).json({ error: "Dates must be in YYYY-MM-DD format" });
+      return res
+        .status(400)
+        .json({ error: "Dates must be in YYYY-MM-DD format" });
     }
 
     if (new Date(checkInDate as string) >= new Date(checkOutDate as string)) {
       console.warn("Validation failed: checkInDate is not before checkOutDate");
-      return res.status(400).json({ error: "checkInDate must be before checkOutDate" });
+      return res
+        .status(400)
+        .json({ error: "checkInDate must be before checkOutDate" });
     }
 
     console.log("Validation passed for input parameters");
@@ -668,7 +675,7 @@ export async function searchHotelsWithOffers(
 
     // Step 1: Fetch hotels by cityCode
     console.log(`Fetching hotels for cityCode: ${cityCode}`);
-    const hotelResponse:any = await axios.get(
+    const hotelResponse: any = await axios.get(
       `${baseURL}/v1/reference-data/locations/hotels/by-city`,
       {
         headers: { Authorization: `Bearer ${token}` },
@@ -713,7 +720,7 @@ export async function searchHotelsWithOffers(
     if (roomQuantity) offerParams.roomQuantity = roomQuantity;
 
     console.log("Fetching hotel offers with parameters:", offerParams);
-    const offersResponse:any = await axios.get(
+    const offersResponse: any = await axios.get(
       `${baseURL}/v3/shopping/hotel-offers`,
       {
         headers: {
@@ -794,14 +801,17 @@ export async function searchHotelsWithOffers(
       },
     });
   } catch (error: any) {
-    console.error("Error in searchHotelsWithOffers:", error.response?.data || error.message);
+    console.error(
+      "Error in searchHotelsWithOffers:",
+      error.response?.data || error.message
+    );
     return res.status(500).json({
       error: "Failed to fetch hotels with offers",
-      details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 }
-
 
 export async function getOfferPricing(
   req: Request,
