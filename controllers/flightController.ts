@@ -1529,154 +1529,249 @@ export async function getAirlinesByMultipleLocations(
 }
 
 // Fallback random IATA codes if input invalid or missing
-const fallbackOrigins = ["JFK", "LHR", "CDG", "FRA", "DXB", "NRT", "HKG", "YYZ", "ORD", "ATL", "ICN", "MAD", "GRU", "JNB", "DEL"];
-const fallbackDestinations = ["LAX", "AMS", "HND", "SIN", "SYD", "BKK", "SFO", "MIA", "MEX", "BCN", "MUC", "KUL", "DOH", "IST", "CAI"];
 
-function getRandomFromArray(arr: string[]) {
+const fallbackOrigins = [
+  "JFK",
+  "LHR",
+  "CDG",
+  "FRA",
+  "DXB",
+  "NRT",
+  "HKG",
+  "YYZ",
+  "ORD",
+  "ATL",
+  "ICN",
+  "MAD",
+  "GRU",
+  "JNB",
+  "DEL",
+];
+
+const fallbackDestinations = [
+  "LAX",
+  "AMS",
+  "HND",
+  "SIN",
+  "SYD",
+  "BKK",
+  "SFO",
+  "MIA",
+  "MEX",
+  "BCN",
+  "MUC",
+  "KUL",
+  "DOH",
+  "IST",
+  "CAI",
+];
+
+const flightOfferCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+const extendedFallbacks = new Map<string, string>([
+  ["JFK", "New York"],
+  ["LHR", "London"],
+  ["CDG", "Paris"],
+  ["FRA", "Frankfurt"],
+  ["DXB", "Dubai"],
+  ["NRT", "Tokyo"],
+  // Add more mappings as needed
+]);
+
+function getRandomFromArray(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-
-// Fetch city name or fallback to IATA code or replacement string
-async function getCityOrFallback(iataCode: string, token: string): Promise<string> {
-  const replacement = "Unknown Location";
-  if (!iataCode) return replacement;
-
-  try {
-    const response:any = await axios.get(`${baseURL}/v1/reference-data/locations`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: {
-        keyword: iataCode,
-        subType: "AIRPORT",
-        "page[limit]": 1,
-      },
-    });
-
-    const location = response.data.data?.[0];
-    if (location) {
-      // Use cityName if available and non-empty, else use iataCode
-      const cityName = location.address?.cityName;
-      if (cityName && cityName.trim().length > 0) {
-        return cityName;
-      }
-      // If cityName missing or empty, fallback to iataCode if valid
-      if (iataCode && iataCode.trim().length === 3) {
-        return iataCode;
-      }
-    }
-    return replacement;
-  } catch (error:any) {
-    console.error(`Failed to fetch city for IATA code ${iataCode}:`, error.message);
-    return replacement;
-  }
-}
-
-// Enrich flight offers with fromCity and toCity fields
-async function enrichFlightOffersWithLocations(offers: any[], token: string) {
-  const cache = new Map<string, string>();
-
-  async function getCachedCityOrFallback(iata: string): Promise<string> {
-    if (!cache.has(iata)) {
-      const cityOrFallback = await getCityOrFallback(iata, token);
-      cache.set(iata, cityOrFallback);
-    }
-    return cache.get(iata)!;
-  }
-
-  return Promise.all(
-    offers.map(async (offer) => {
-      const itinerary = offer.itineraries?.[0];
-      const segment = itinerary?.segments?.[0];
-      const fromIata = segment?.departure?.iataCode;
-      const toIata = segment?.arrival?.iataCode;
-
-      let fromCity = fromIata ? await getCachedCityOrFallback(fromIata) : "Unknown Location";
-      let toCity = toIata ? await getCachedCityOrFallback(toIata) : "Unknown Location";
-
-      // If city is "Unknown Location", replace with IATA code if available
-      if (fromCity === "Unknown Location" && fromIata) {
-        fromCity = fromIata;
-      }
-      if (toCity === "Unknown Location" && toIata) {
-        toCity = toIata;
-      }
-
-      return {
-        ...offer,
-        fromCity,
-        toCity,
-      };
-    })
+function isValidIataCode(code: string): boolean {
+  return (
+    typeof code === "string" && code.length === 3 && /^[A-Z]{3}$/.test(code)
   );
 }
 
-// Remove duplicate flight offers by unique 'id'
+async function getCityOrFallback(
+  iataCode: string,
+  token: string
+): Promise<string> {
+  if (!isValidIataCode(iataCode)) return "Unknown Location";
+
+  if (extendedFallbacks.has(iataCode)) {
+    return extendedFallbacks.get(iataCode)!;
+  }
+
+  try {
+    const response: any = await axios.get(
+      `${baseURL}/v1/reference-data/locations`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          keyword: iataCode,
+          subType: "AIRPORT",
+          "page[limit]": 1,
+        },
+      }
+    );
+
+    const location = response.data.data?.[0];
+    return location?.address?.cityName || iataCode;
+  } catch (error: any) {
+    console.error(
+      `Failed to fetch city for IATA code ${iataCode}:`,
+      error.message
+    );
+    return iataCode;
+  }
+}
+
+async function enrichFlightOffersWithLocations(offers: any[], token: string) {
+  const uniqueIatas = new Set<string>();
+  const locationMap = new Map<string, string>();
+
+  offers.forEach((offer) => {
+    const segment = offer.itineraries?.[0]?.segments?.[0];
+    if (segment?.departure?.iataCode)
+      uniqueIatas.add(segment.departure.iataCode);
+    if (segment?.arrival?.iataCode) uniqueIatas.add(segment.arrival.iataCode);
+  });
+
+  // Process in batches to avoid rate limiting
+  const batchSize = 6;
+  const iataArray = Array.from(uniqueIatas);
+
+  for (let i = 0; i < iataArray.length; i += batchSize) {
+    const batch = iataArray.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async (iata) => {
+        const city = await getCityOrFallback(iata, token);
+        locationMap.set(iata, city);
+      })
+    );
+
+    // Add delay between batches if needed
+    if (i + batchSize < iataArray.length) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  return offers.map((offer) => {
+    const segment = offer.itineraries?.[0]?.segments?.[0];
+    const fromIata = segment?.departure?.iataCode;
+    const toIata = segment?.arrival?.iataCode;
+
+    return {
+      ...offer,
+      fromCity: fromIata
+        ? locationMap.get(fromIata) || fromIata
+        : "Unknown Location",
+      toCity: toIata ? locationMap.get(toIata) || toIata : "Unknown Location",
+    };
+  });
+}
+
 function removeDuplicateOffers(offers: any[]): any[] {
   const seen = new Set<string>();
   return offers.filter((offer) => {
-    if (!offer.id) return true; // Keep if no id (optional)
-    if (seen.has(offer.id)) {
-      return false; // Duplicate found, filter out
-    }
+    if (!offer.id) return true;
+    if (seen.has(offer.id)) return false;
     seen.add(offer.id);
     return true;
   });
 }
 
-
 export async function getFlightOffersRandom(
   req: Request,
   res: Response
-): Promise<any> {
+): Promise<Response | any> {
   try {
+    const cacheKey = JSON.stringify(req.query);
+    const cachedResponse = flightOfferCache.get(cacheKey);
+
+    if (cachedResponse && Date.now() - cachedResponse.timestamp < CACHE_TTL) {
+      return res.status(200).json({ data: cachedResponse.data });
+    }
+
     const token = await getAmadeusToken();
 
-    let { origin, destination, adults, departureDate, currencyCode } = req.query;
+    let { origin, destination, adults, departureDate, currencyCode } =
+      req.query;
 
-    if (!origin || typeof origin !== "string" || origin.length !== 3) {
+    if (!isValidIataCode(origin as string)) {
       origin = getRandomFromArray(fallbackOrigins);
     }
-    if (!destination || typeof destination !== "string" || destination.length !== 3) {
+    if (!isValidIataCode(destination as string)) {
       destination = getRandomFromArray(fallbackDestinations);
     }
-    const adultsNum = adults && !isNaN(Number(adults)) && Number(adults) > 0 ? Number(adults) : 1;
+
+    const adultsNum =
+      adults && !isNaN(Number(adults)) && Number(adults) > 0
+        ? Number(adults)
+        : 1;
 
     const today = new Date();
-    const defaultDeparture = new Date(today.setDate(today.getDate() + 7)).toISOString().split("T")[0];
-    if (!departureDate || typeof departureDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) {
+    const defaultDeparture = new Date(today.setDate(today.getDate() + 7))
+      .toISOString()
+      .split("T")[0];
+    if (
+      !departureDate ||
+      typeof departureDate !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)
+    ) {
       departureDate = defaultDeparture;
     }
 
-    if (!currencyCode || typeof currencyCode !== "string" || currencyCode.length !== 3) {
+    if (
+      !currencyCode ||
+      typeof currencyCode !== "string" ||
+      currencyCode.length !== 3
+    ) {
       currencyCode = "USD";
     }
 
     const params = {
-      originLocationCode: origin.toUpperCase(),
-      destinationLocationCode: destination.toUpperCase(),
+      originLocationCode: (origin as string).toUpperCase(),
+      destinationLocationCode: (destination as string).toUpperCase(),
       departureDate,
       adults: adultsNum,
       max: 6,
-      currencyCode: currencyCode.toUpperCase(),
+      currencyCode: (currencyCode as string).toUpperCase(),
     };
 
-    const response: any = await axios.get(`${baseURL}/v2/shopping/flight-offers`, {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
+    const response: any = await axios.get(
+      `${baseURL}/v2/shopping/flight-offers`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "public, max-age=300",
+        },
+        params,
+      }
+    );
+
+    const offers = response.data.data || [];
+    const uniqueOffers = removeDuplicateOffers(offers);
+    const enrichedOffers = await enrichFlightOffersWithLocations(
+      uniqueOffers,
+      token
+    );
+
+    flightOfferCache.set(cacheKey, {
+      data: enrichedOffers,
+      timestamp: Date.now(),
     });
-
-const offers = response.data.data || [];
-
-// Deduplicate offers by id
-const uniqueOffers = removeDuplicateOffers(offers);
-
-const enrichedOffers = await enrichFlightOffersWithLocations(uniqueOffers, token);
-
-return res.status(200).json({ data: enrichedOffers });
 
     return res.status(200).json({ data: enrichedOffers });
   } catch (error: any) {
-    console.error("Amadeus flight offers error:", error.response?.data || error.message);
+    console.error(
+      "Amadeus flight offers error:",
+      error.response?.data || error.message
+    );
+
+    const cacheKey = JSON.stringify(req.query);
+    const cachedResponse = flightOfferCache.get(cacheKey);
+    if (cachedResponse) {
+      return res.status(200).json({ data: cachedResponse.data });
+    }
+
     return res.status(500).json({ error: "Failed to fetch flight offers" });
   }
 }
