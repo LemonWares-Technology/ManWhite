@@ -774,6 +774,8 @@ export async function bookFlightWithOptionalAddons(
         : mapTravelerToAmadeusFormat(t, (idx + 1).toString())
     );
 
+    console.log(`amadeusTravelers`, amadeusTravelers);
+
     const token = await getAmadeusToken();
 
     // Prepare Amadeus booking payload
