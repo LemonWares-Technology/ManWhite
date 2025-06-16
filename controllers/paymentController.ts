@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { Stripe } from "stripe";
 import env from "dotenv";
-import { sendPaymentSuccessEmail } from "../config/emailServices";
+import { sendPaymentSuccessEmail } from "../utils/brevo";
 env.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
