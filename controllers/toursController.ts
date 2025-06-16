@@ -49,8 +49,6 @@ const baseURL: string = `https://test.api.amadeus.com`;
 //     const longitude = city.geoCode?.longitude;
 //     const latitude = city.geoCode?.latitude;
 
-
-
 //     const activitiesResponse: any = await axios.get(`${baseURL}/v1/shopping/activities`, {
 //         params: {
 //             longitude,
@@ -169,43 +167,41 @@ export async function searchToursByCity(
   }
 }
 
+export async function getTourDetailsById(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { activityId } = req.params;
 
-
-export async function getTourDetailsById (req: Request, res: Response): Promise<any> {
-    try {
-
-        const {activityId} = req.params;
-
-        if(!activityId){
-            return res.status(400).json({
-                message: `Missing required parameters: activityId`
-            })
-        }
-
-        const token = await getAmadeusToken();
-
-        const activity: any = await axios.get(`${baseURL}/v1/shopping/activities/${activityId}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            }
-        )
-
-        const activityResponse = activity.data?.data
-
-
-        return res.status(200).json({
-            message: `Success`,
-            data: activityResponse
-        })
-        
-    } catch (error: any) {
-        console.error(`Error:`, error);
-
-        return res.status(500).json({
-            message: `Internal server error`,
-        })
+    if (!activityId) {
+      return res.status(400).json({
+        message: `Missing required parameters: activityId`,
+      });
     }
-}
 
+    const token = await getAmadeusToken();
+
+    const activity: any = await axios.get(
+      `${baseURL}/v1/shopping/activities/${activityId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const activityResponse = activity.data?.data;
+
+    return res.status(200).json({
+      message: `Success`,
+      data: activityResponse,
+    });
+  } catch (error: any) {
+    console.error(`Error:`, error);
+
+    return res.status(500).json({
+      message: `Internal server error`,
+    });
+  }
+}
