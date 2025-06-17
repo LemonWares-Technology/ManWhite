@@ -8,8 +8,8 @@ import {
 
 const router = express.Router();
 
-router.route("/initialize").post(initializePayment);
-router.route("/verify").post(verifyFlutterwavePaymentWithEmail);
+router.route("/initialize").post(initializePayment); // Working
+router.route("/verify").post(verifyFlutterwavePaymentWithEmail); // Working
 router.route("/stripe/initialize").post(initializeStripePayment);
 router.route("/stripe/verify").get(verifyStripePayment);
 export default router;
