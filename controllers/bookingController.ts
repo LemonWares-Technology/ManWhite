@@ -89,7 +89,10 @@ export const addFlightToCart = async (
   }
 };
 
-export const getUserCart = async (req: Request, res: Response): Promise<any> => {
+export const getUserCart = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
   try {
     const { userId } = req.params;
 
@@ -155,7 +158,10 @@ export const removeFlightFromCart = async (
 };
 
 // Remove all flights from a user's cart
-export const emptyUserFlightCart = async (req: Request, res: Response): Promise<any> => {
+export const emptyUserFlightCart = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
   const { userId } = req.params;
   try {
     // Check if userId is provided
@@ -908,3 +914,35 @@ export const bookUserFlight = async (req: any, res: any): Promise<any> => {
       .json({ message: "Error booking flight", error: error.message });
   }
 };
+
+export async function deleteBooking(req: Request, res: Response): Promise<any> {
+  try {
+    const { bookingId } = req.params;
+
+    if (!bookingId) {
+      return res.status(400).json({
+        message: `Missing required parameters: bookingId`,
+      });
+    }
+
+    const bookings = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!bookings) {
+      return res.status(404).json({
+        message: `Booking does not exist`,
+      });
+    }
+
+    return res.status(200).json({
+      message: `Booking deleted successfully`,
+    });
+  } catch (error: any) {
+    console.error(`Error: `, error);
+
+    return res.status(500).json({
+      message: `Internal server error`,
+    });
+  }
+}

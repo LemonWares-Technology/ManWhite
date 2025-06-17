@@ -3,7 +3,10 @@ import axios from "axios";
 import { Stripe } from "stripe";
 import env from "dotenv";
 import { sendPaymentSuccessEmail } from "../utils/brevo";
+import { PrismaClient } from "@prisma/client";
 env.config();
+
+const prisma = new PrismaClient();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -243,13 +246,103 @@ export const initializeStripePayment = async (
 // 1. Route Definition (change to POST)
 
 // 2. Verification Function
+// export const verifyFlutterwavePaymentWithEmail = async (
+//   req: Request,
+//   res: Response
+// ): Promise<Response | any> => {
+//   // Stronger return type
+//   try {
+//     // Validate input
+//     const tx_ref = req.query.tx_ref || req.body.tx_ref;
+
+//     if (!tx_ref || typeof tx_ref !== "string") {
+//       return res.status(400).json({
+//         success: false,
+//         error: "VALIDATION_ERROR",
+//         message: "Valid transaction reference is required",
+//       });
+//     }
+
+//     // Verify transaction
+//     const response: any = await axios.get(
+//       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(
+//         tx_ref
+//       )}`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+//         },
+//         timeout: 10000, // 10 second timeout
+//       }
+//     );
+
+//     const paymentData = response.data?.data;
+
+//     // Check payment status
+//     if (
+//       !paymentData ||
+//       response.data.status !== "success" ||
+//       paymentData.status !== "successful"
+//     ) {
+//       return res.status(400).json({
+//         success: false,
+//         error: "PAYMENT_FAILED",
+//         message: "Payment verification failed or payment not successful",
+//         data: paymentData || null,
+//       });
+//     }
+
+//     // Async email sending (don't await)
+//     sendPaymentSuccessEmail(paymentData, paymentData.meta?.bookingData).catch(
+//       (error) => console.error("Email sending failed:", error)
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Payment verified successfully",
+//       data: {
+//         reference: paymentData.tx_ref,
+//         amount: paymentData.amount,
+//         currency: paymentData.currency,
+//         status: paymentData.status,
+//         // Include only necessary fields
+//       },
+//     });
+//   } catch (error: any) {
+//     console.error("Payment verification error:", error);
+
+//     // Handle different error types
+//     if (error.response) {
+//       // Flutterwave API error
+//       return res.status(502).json({
+//         success: false,
+//         error: "GATEWAY_ERROR",
+//         message: "Payment gateway error",
+//         details: error.response.data?.message || "Flutterwave API error",
+//       });
+//     } else if (error.request) {
+//       // No response received
+//       return res.status(504).json({
+//         success: false,
+//         error: "NETWORK_ERROR",
+//         message: "No response from payment gateway",
+//       });
+//     } else {
+//       // Setup error
+//       return res.status(500).json({
+//         success: false,
+//         error: "SERVER_ERROR",
+//         message: "Internal server error during verification",
+//       });
+//     }
+//   }
+// };
+
 export const verifyFlutterwavePaymentWithEmail = async (
   req: Request,
   res: Response
 ): Promise<Response | any> => {
-  // Stronger return type
   try {
-    // Validate input
     const tx_ref = req.query.tx_ref || req.body.tx_ref;
 
     if (!tx_ref || typeof tx_ref !== "string") {
@@ -260,7 +353,6 @@ export const verifyFlutterwavePaymentWithEmail = async (
       });
     }
 
-    // Verify transaction
     const response: any = await axios.get(
       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(
         tx_ref
@@ -269,13 +361,12 @@ export const verifyFlutterwavePaymentWithEmail = async (
         headers: {
           Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 10000,
       }
     );
 
     const paymentData = response.data?.data;
 
-    // Check payment status
     if (
       !paymentData ||
       response.data.status !== "success" ||
@@ -289,7 +380,15 @@ export const verifyFlutterwavePaymentWithEmail = async (
       });
     }
 
-    // Async email sending (don't await)
+    // Get userId from paymentData.meta.bookingData or your own logic
+    const userId = paymentData.meta?.bookingData?.userId;
+    if (userId) {
+      // Clear the cart for this user
+      await prisma.flightCart.deleteMany({
+        where: { userId },
+      });
+    }
+
     sendPaymentSuccessEmail(paymentData, paymentData.meta?.bookingData).catch(
       (error) => console.error("Email sending failed:", error)
     );
@@ -302,13 +401,11 @@ export const verifyFlutterwavePaymentWithEmail = async (
         amount: paymentData.amount,
         currency: paymentData.currency,
         status: paymentData.status,
-        // Include only necessary fields
       },
     });
   } catch (error: any) {
     console.error("Payment verification error:", error);
 
-    // Handle different error types
     if (error.response) {
       // Flutterwave API error
       return res.status(502).json({
@@ -332,8 +429,10 @@ export const verifyFlutterwavePaymentWithEmail = async (
         message: "Internal server error during verification",
       });
     }
+    //   }
   }
 };
+
 // Verifying stipe payment
 export const verifyStripePayment = async (
   req: Request,

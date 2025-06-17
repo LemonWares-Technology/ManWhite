@@ -60,7 +60,7 @@ export const mainApp = (app: Application) => {
     if (isAndroid || isIOS) {
       res.redirect(`manwhitaroes://auth/completeprofile/${userId}`);
     } else {
-      res.redirect(`https://manwhitareos.web.app/auth/${userId}`);
+      res.redirect(`https://manwhit.lemonwares.com/auth/${userId}`);
     }
   });
 };
