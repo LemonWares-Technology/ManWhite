@@ -1,3 +1,4 @@
+import { parseISO, format } from "date-fns";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -45,41 +46,64 @@ export async function getConversionRate(
 
 function formatDate(date: string | Date | undefined | null): string | null {
   if (!date) return null;
-  if (date instanceof Date) return date.toISOString().split('T')[0];
-  if (typeof date === "string") return date.split('T')[0]; // Handles "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
-  return null;
+
+  try {
+    let parsedDate: Date;
+
+    if (date instanceof Date) {
+      parsedDate = date;
+    } else if (typeof date === "string") {
+      // Try to parse ISO string
+      parsedDate = parseISO(date);
+      if (isNaN(parsedDate.getTime())) {
+        // Invalid date string
+        return null;
+      }
+    } else {
+      return null;
+    }
+
+    // Format as YYYY-MM-DD
+    return format(parsedDate, "yyyy-MM-dd");
+  } catch {
+    return null;
+  }
 }
 
-export function mapTravelerToAmadeusFormat(t:any, id:any) {
+export function mapTravelerToAmadeusFormat(t: any, id: any) {
   return {
     id: id,
     dateOfBirth: formatDate(t.dateOfBirth),
     name: {
-      firstName: t.firstName,
-      lastName: t.lastName,
+      firstName: t.name?.firstName || t.firstName, // Try nested first, fallback to flat
+      lastName: t.name?.lastName || t.lastName,
     },
     gender: t.gender,
     contact: {
-      emailAddress: t.email,
+      emailAddress: t.contact?.emailAddress || t.email,
       phones: [
         {
           deviceType: "MOBILE",
-          countryCallingCode: t.countryCode,
-          number: t.phone,
+          countryCallingCode:
+            t.contact?.phones?.[0]?.countryCallingCode || t.countryCode,
+          number: t.contact?.phones?.[0]?.number || t.phone,
         },
       ],
     },
     documents: [
       {
         documentType: "PASSPORT",
-        number: t.passportNumber,
-        expiryDate: formatDate(t.passportExpiry),
-        issuanceCountry: t.issuanceCountry,
-        validityCountry: t.validityCountry,
-        nationality: t.nationality,
-        birthPlace: t.birthPlace,
-        issuanceLocation: t.issuanceLocation,
-        issuanceDate: t.issuanceDate,
+        number: t.documents?.[0]?.number || t.passportNumber,
+        expiryDate: formatDate(
+          t.documents?.[0]?.expiryDate || t.passportExpiry
+        ),
+        issuanceCountry: t.documents?.[0]?.issuanceCountry || t.issuanceCountry,
+        validityCountry: t.documents?.[0]?.validityCountry || t.validityCountry,
+        nationality: t.documents?.[0]?.nationality || t.nationality,
+        birthPlace: t.documents?.[0]?.birthPlace || t.birthPlace,
+        issuanceLocation:
+          t.documents?.[0]?.issuanceLocation || t.issuanceLocation,
+        issuanceDate: t.documents?.[0]?.issuanceDate || t.issuanceDate,
         holder: true,
       },
     ],
