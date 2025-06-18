@@ -2079,11 +2079,214 @@ export async function getFlightOfferDetails(
   }
 }
 
+// export async function bookFlightWithOptionalAddons(
+//   req: Request,
+//   res: Response
+// ): Promise<any> {
+//   const { flightOffer, travelers, addonIds = [], userId } = req.body;
+
+//   try {
+//     console.log("Received booking request with:", {
+//       flightOfferExists: !!flightOffer,
+//       travelersCount: travelers?.length || 0,
+//       addonIds,
+//       userId,
+//       travelers,
+//       flightOffer,
+//     });
+
+//     if (!flightOffer || !travelers) {
+//       return res.status(400).json({
+//         error: "Missing required fields: flightOffer or travelers",
+//       });
+//     }
+
+//     if (!userId) {
+//       return res
+//         .status(400)
+//         .json({ error: "userId is required for this booking endpoint." });
+//     }
+//     const userExists = await prisma.user.findUnique({ where: { id: userId } });
+//     if (!userExists) {
+//       return res.status(400).json({ error: "Invalid userId: user not found" });
+//     }
+
+//     const amadeusTravelers = travelers.map((t: any, idx: number) =>
+//       t.name && t.contact && t.documents
+//         ? { ...t, id: (idx + 1).toString() }
+//         : mapTravelerToAmadeusFormat(t, (idx + 1).toString())
+//     );
+
+//     if (!amadeusTravelers[0]?.name?.firstName) {
+//       return res.status(400).json({
+//         error: "Missing firstName in traveler data",
+//       });
+//     }
+
+//     const token = await getAmadeusToken();
+
+//     const payload = {
+//       data: {
+//         type: "flight-order",
+//         flightOffers: [flightOffer],
+//         travelers: amadeusTravelers,
+//         holder: {
+//           name: {
+//             firstName:
+//               amadeusTravelers[0]?.name?.firstName || "UNKNOWN_FIRSTNAME",
+//             lastName: amadeusTravelers[0]?.name?.lastName || "UNKNOWN_LASTNAME",
+//           },
+//         },
+//       },
+//     };
+
+//     const response: any = await axios.post(
+//       `${baseURL}/v1/booking/flight-orders`,
+//       payload,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//           "Content-Type": "application/json",
+//         },
+//       }
+//     );
+
+//     const amadeusBooking: any = response.data;
+
+//     const marginSetting: any = await prisma.marginSetting.findFirst({
+//       orderBy: { createdAt: "desc" },
+//     });
+//     if (!marginSetting) {
+//       return res.status(500).json({ error: "Margin setting not configured" });
+//     }
+//     const marginPercentage = marginSetting.amount;
+
+//     const flightOffers = amadeusBooking?.data?.flightOffers || [];
+//     if (flightOffers.length === 0) {
+//       return res
+//         .status(500)
+//         .json({ error: "No flight offers found in Amadeus response" });
+//     }
+//     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+
+//     const marginAdded = (marginPercentage / 100) * basePriceNGN;
+//     const originalTotalAmount = basePriceNGN + marginAdded;
+
+//     const conversionRate = await getConversionRate("USD", "NGN");
+
+//     let addons: any[] = [];
+//     let addonTotalNGN = 0;
+//     if (addonIds.length > 0) {
+//       addons = await prisma.flightAddon.findMany({
+//         where: { id: { in: addonIds } },
+//       });
+//       if (addons.length !== addonIds.length) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "One or more addonIds are invalid",
+//         });
+//       }
+//       addonTotalNGN = addons.reduce((sum, addon) => {
+//         const priceInUsd = addon.price;
+//         const priceInNgn = priceInUsd * conversionRate;
+//         return sum + priceInNgn;
+//       }, 0);
+//     }
+
+//     const totalAmountNGN = originalTotalAmount + addonTotalNGN;
+
+//     const bookingData: any = {
+//       userId,
+//       referenceId: amadeusBooking.data.id,
+//       type: "FLIGHT",
+//       status: "CONFIRMED",
+//       verified: true,
+//       apiProvider: "AMADEUS",
+//       apiReferenceId: amadeusBooking.data.id,
+//       apiResponse: amadeusBooking,
+//       bookingDetails: flightOffer,
+//       totalAmount: +totalAmountNGN.toFixed(2),
+//       currency: "NGN",
+//       locationDetails: {},
+//       airlineDetails: {},
+//     };
+
+//     const booking = await prisma.booking.create({ data: bookingData });
+
+//     if (addonIds.length > 0) {
+//       await prisma.flightAddon.updateMany({
+//         where: { id: { in: addonIds } },
+//         data: { bookingId: booking.id },
+//       });
+//     }
+
+//     for (const t of travelers) {
+//       await prisma.traveler.create({
+//         data: {
+//           bookingId: booking.id,
+//           userId,
+//           firstName: t.name.firstName || t.firstName,
+//           lastName: t.name.lastName || t.lastName,
+//           dateOfBirth: new Date(t.dateOfBirth),
+//           gender: t.gender,
+//           email: t.contact.emailAddress,
+//           phone: t.contact.phones?.[0]?.number,
+//           countryCode: t.contact.phones?.[0]?.countryCallingCode,
+//           passportNumber: t.documents?.[0]?.number,
+//           passportExpiry: t.documents?.[0]?.expiryDate
+//             ? new Date(t.documents[0].expiryDate)
+//             : undefined,
+//           nationality: t.documents?.[0]?.nationality,
+//         },
+//       });
+
+//       // Send booking confirmation email to each traveler
+//       if (t.contact.emailAddress) {
+//         await sendBookingConfirmationEmail({
+//           toEmail: t.contact.emailAddress,
+//           toName: `${t.name.firstName || t.firstName} ${
+//             t.name.lastName || t.lastName
+//           }`,
+//           bookingId: booking.id,
+//           flightOffer,
+//         });
+//       }
+//     }
+
+//     const bookingWithAddons = await prisma.booking.findUnique({
+//       where: { id: booking.id },
+//       include: { FlightAddon: true },
+//     });
+
+//     return res.status(201).json({
+//       success: true,
+//       message:
+//         "Flight successfully booked with addons and confirmation emails sent",
+//       booking: bookingWithAddons,
+//       amadeus: amadeusBooking,
+//       originalTotalAmount: +originalTotalAmount.toFixed(2),
+//       addonTotal: +addonTotalNGN.toFixed(2),
+//       totalAmount: +totalAmountNGN.toFixed(2),
+//     });
+//   } catch (error: any) {
+//     console.error("Booking Error:", error.response?.data || error.message);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Flight booking failed",
+//       error: error.response?.data || error.message,
+//     });
+//   }
+// }
+
 export async function bookFlightWithOptionalAddons(
   req: Request,
   res: Response
 ): Promise<any> {
   const { flightOffer, travelers, addonIds = [], userId } = req.body;
+
+  console.log("=== BOOKING FUNCTION STARTED ===");
+  console.log("Request body keys:", Object.keys(req.body));
+  console.log("Full request body:", JSON.stringify(req.body, null, 2));
 
   try {
     console.log("Received booking request with:", {
@@ -2095,36 +2298,97 @@ export async function bookFlightWithOptionalAddons(
       flightOffer,
     });
 
+    // Validation checks with detailed logging
+    console.log("=== VALIDATION PHASE ===");
+
     if (!flightOffer || !travelers) {
+      console.error("Validation failed: Missing flightOffer or travelers");
+      console.error("flightOffer exists:", !!flightOffer);
+      console.error("travelers exists:", !!travelers);
       return res.status(400).json({
         error: "Missing required fields: flightOffer or travelers",
       });
     }
+    console.log("✓ flightOffer and travelers validation passed");
 
     if (!userId) {
+      console.error("Validation failed: userId is missing");
       return res
         .status(400)
         .json({ error: "userId is required for this booking endpoint." });
     }
+    console.log("✓ userId validation passed:", userId);
+
+    // Database user check
+    console.log("=== USER VERIFICATION ===");
+    console.log("Checking if user exists with ID:", userId);
+
     const userExists = await prisma.user.findUnique({ where: { id: userId } });
+    console.log(
+      "User query result:",
+      userExists ? "User found" : "User not found"
+    );
+
     if (!userExists) {
+      console.error("User verification failed: User not found for ID:", userId);
       return res.status(400).json({ error: "Invalid userId: user not found" });
     }
+    console.log("✓ User verification passed");
 
-    const amadeusTravelers = travelers.map((t: any, idx: number) =>
-      t.name && t.contact && t.documents
-        ? { ...t, id: (idx + 1).toString() }
-        : mapTravelerToAmadeusFormat(t, (idx + 1).toString())
+    // Traveler mapping
+    console.log("=== TRAVELER MAPPING ===");
+    console.log("Original travelers data:", JSON.stringify(travelers, null, 2));
+
+    const amadeusTravelers = travelers.map((t: any, idx: number) => {
+      console.log(`Mapping traveler ${idx + 1}:`, JSON.stringify(t, null, 2));
+
+      const mapped =
+        t.name && t.contact && t.documents
+          ? { ...t, id: (idx + 1).toString() }
+          : mapTravelerToAmadeusFormat(t, (idx + 1).toString());
+
+      console.log(
+        `Mapped traveler ${idx + 1}:`,
+        JSON.stringify(mapped, null, 2)
+      );
+      return mapped;
+    });
+
+    console.log(
+      "All amadeusTravelers:",
+      JSON.stringify(amadeusTravelers, null, 2)
+    );
+
+    // First traveler validation
+    console.log("=== FIRST TRAVELER VALIDATION ===");
+    console.log("First traveler name object:", amadeusTravelers[0]?.name);
+    console.log(
+      "First traveler firstName:",
+      amadeusTravelers[0]?.name?.firstName
     );
 
     if (!amadeusTravelers[0]?.name?.firstName) {
+      console.error("First traveler validation failed: Missing firstName");
+      console.error(
+        "First traveler data:",
+        JSON.stringify(amadeusTravelers[0], null, 2)
+      );
       return res.status(400).json({
         error: "Missing firstName in traveler data",
       });
     }
+    console.log("✓ First traveler validation passed");
+
+    // Amadeus token acquisition
+    console.log("=== AMADEUS TOKEN ACQUISITION ===");
+    console.log("Requesting Amadeus token...");
 
     const token = await getAmadeusToken();
+    console.log("Amadeus token acquired:", token ? "Success" : "Failed");
+    console.log("Token length:", token?.length || 0);
 
+    // Payload construction
+    console.log("=== PAYLOAD CONSTRUCTION ===");
     const payload = {
       data: {
         type: "flight-order",
@@ -2140,6 +2404,17 @@ export async function bookFlightWithOptionalAddons(
       },
     };
 
+    console.log("Amadeus API payload:", JSON.stringify(payload, null, 2));
+    console.log("Payload size (bytes):", JSON.stringify(payload).length);
+
+    // Amadeus API call
+    console.log("=== AMADEUS API CALL ===");
+    console.log("Making request to:", `${baseURL}/v1/booking/flight-orders`);
+    console.log("Request headers:", {
+      Authorization: `Bearer ${token.substring(0, 10)}...`,
+      "Content-Type": "application/json",
+    });
+
     const response: any = await axios.post(
       `${baseURL}/v1/booking/flight-orders`,
       payload,
@@ -2151,50 +2426,128 @@ export async function bookFlightWithOptionalAddons(
       }
     );
 
+    console.log("Amadeus API response status:", response.status);
+    console.log("Amadeus API response headers:", response.headers);
+    console.log(
+      "Amadeus API response data:",
+      JSON.stringify(response.data, null, 2)
+    );
+
     const amadeusBooking: any = response.data;
+    console.log("✓ Amadeus booking created successfully");
+
+    // Margin setting retrieval
+    console.log("=== MARGIN SETTING RETRIEVAL ===");
+    console.log("Fetching latest margin setting...");
 
     const marginSetting: any = await prisma.marginSetting.findFirst({
       orderBy: { createdAt: "desc" },
     });
+
+    console.log(
+      "Margin setting query result:",
+      marginSetting ? "Found" : "Not found"
+    );
+    console.log("Margin setting data:", JSON.stringify(marginSetting, null, 2));
+
     if (!marginSetting) {
+      console.error("Margin setting not found in database");
       return res.status(500).json({ error: "Margin setting not configured" });
     }
-    const marginPercentage = marginSetting.amount;
 
+    const marginPercentage = marginSetting.amount;
+    console.log("✓ Margin percentage:", marginPercentage);
+
+    // Flight offers processing
+    console.log("=== FLIGHT OFFERS PROCESSING ===");
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
+    console.log("Flight offers count:", flightOffers.length);
+    console.log("Flight offers data:", JSON.stringify(flightOffers, null, 2));
+
     if (flightOffers.length === 0) {
+      console.error("No flight offers found in Amadeus response");
+      console.error(
+        "Amadeus booking data structure:",
+        Object.keys(amadeusBooking?.data || {})
+      );
       return res
         .status(500)
         .json({ error: "No flight offers found in Amadeus response" });
     }
-    const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
 
+    const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+    console.log("Base price (NGN):", basePriceNGN);
+    console.log("Flight offer price object:", flightOffers[0].price);
+
+    // Price calculations
+    console.log("=== PRICE CALCULATIONS ===");
     const marginAdded = (marginPercentage / 100) * basePriceNGN;
     const originalTotalAmount = basePriceNGN + marginAdded;
 
+    console.log("Margin added:", marginAdded);
+    console.log("Original total amount:", originalTotalAmount);
+
+    // Currency conversion
+    console.log("=== CURRENCY CONVERSION ===");
+    console.log("Getting USD to NGN conversion rate...");
+
     const conversionRate = await getConversionRate("USD", "NGN");
+    console.log("Conversion rate (USD to NGN):", conversionRate);
+
+    // Addon processing
+    console.log("=== ADDON PROCESSING ===");
+    console.log("Addon IDs to process:", addonIds);
+    console.log("Addon IDs count:", addonIds.length);
 
     let addons: any[] = [];
     let addonTotalNGN = 0;
+
     if (addonIds.length > 0) {
+      console.log("Fetching addons from database...");
+
       addons = await prisma.flightAddon.findMany({
         where: { id: { in: addonIds } },
       });
+
+      console.log("Addons found in database:", addons.length);
+      console.log("Addons data:", JSON.stringify(addons, null, 2));
+
       if (addons.length !== addonIds.length) {
+        console.error("Addon validation failed:");
+        console.error("Requested addon IDs:", addonIds);
+        console.error(
+          "Found addon IDs:",
+          addons.map((a) => a.id)
+        );
         return res.status(400).json({
           success: false,
           message: "One or more addonIds are invalid",
         });
       }
+
+      console.log("Processing addon prices...");
       addonTotalNGN = addons.reduce((sum, addon) => {
         const priceInUsd = addon.price;
         const priceInNgn = priceInUsd * conversionRate;
+        console.log(`Addon ${addon.id}: $${priceInUsd} = ₦${priceInNgn}`);
         return sum + priceInNgn;
       }, 0);
+
+      console.log("Total addon amount (NGN):", addonTotalNGN);
+    } else {
+      console.log("No addons to process");
     }
 
+    // Final total calculation
+    console.log("=== FINAL TOTAL CALCULATION ===");
     const totalAmountNGN = originalTotalAmount + addonTotalNGN;
+    console.log("Final breakdown:");
+    console.log("- Base price + margin:", originalTotalAmount);
+    console.log("- Addon total:", addonTotalNGN);
+    console.log("- Grand total:", totalAmountNGN);
 
+    // Database booking creation
+    console.log("=== DATABASE BOOKING CREATION ===");
     const bookingData: any = {
       userId,
       referenceId: amadeusBooking.data.id,
@@ -2211,54 +2564,116 @@ export async function bookFlightWithOptionalAddons(
       airlineDetails: {},
     };
 
-    const booking = await prisma.booking.create({ data: bookingData });
+    console.log(
+      "Booking data to insert:",
+      JSON.stringify(bookingData, null, 2)
+    );
+    console.log("Creating booking in database...");
 
+    const booking = await prisma.booking.create({ data: bookingData });
+    console.log("✓ Booking created with ID:", booking.id);
+    console.log("Created booking data:", JSON.stringify(booking, null, 2));
+
+    // Addon association
+    console.log("=== ADDON ASSOCIATION ===");
     if (addonIds.length > 0) {
-      await prisma.flightAddon.updateMany({
+      console.log("Associating addons with booking...");
+
+      const addonUpdateResult = await prisma.flightAddon.updateMany({
         where: { id: { in: addonIds } },
         data: { bookingId: booking.id },
       });
+
+      console.log("Addon update result:", addonUpdateResult);
+      console.log("✓ Addons associated with booking");
+    } else {
+      console.log("No addons to associate");
     }
 
-    for (const t of travelers) {
-      await prisma.traveler.create({
-        data: {
-          bookingId: booking.id,
-          userId,
-          firstName: t.name.firstName || t.firstName,
-          lastName: t.name.lastName || t.lastName,
-          dateOfBirth: new Date(t.dateOfBirth),
-          gender: t.gender,
-          email: t.contact.emailAddress,
-          phone: t.contact.phones?.[0]?.number,
-          countryCode: t.contact.phones?.[0]?.countryCallingCode,
-          passportNumber: t.documents?.[0]?.number,
-          passportExpiry: t.documents?.[0]?.expiryDate
-            ? new Date(t.documents[0].expiryDate)
-            : undefined,
-          nationality: t.documents?.[0]?.nationality,
-        },
+    // Traveler creation
+    console.log("=== TRAVELER CREATION ===");
+    for (let i = 0; i < travelers.length; i++) {
+      const t = travelers[i];
+      console.log(
+        `Processing traveler ${i + 1}/${travelers.length}:`,
+        JSON.stringify(t, null, 2)
+      );
+
+      const travelerData = {
+        bookingId: booking.id,
+        userId,
+        firstName: t.name?.firstName || t.firstName,
+        lastName: t.name?.lastName || t.lastName,
+        dateOfBirth: new Date(t.dateOfBirth),
+        gender: t.gender,
+        email: t.contact?.emailAddress,
+        phone: t.contact?.phones?.[0]?.number,
+        countryCode: t.contact?.phones?.[0]?.countryCallingCode,
+        passportNumber: t.documents?.[0]?.number,
+        passportExpiry: t.documents?.[0]?.expiryDate
+          ? new Date(t.documents[0].expiryDate)
+          : undefined,
+        nationality: t.documents?.[0]?.nationality,
+      };
+
+      console.log(
+        `Traveler ${i + 1} data to insert:`,
+        JSON.stringify(travelerData, null, 2)
+      );
+
+      const createdTraveler = await prisma.traveler.create({
+        data: travelerData,
       });
 
-      // Send booking confirmation email to each traveler
-      if (t.contact.emailAddress) {
-        await sendBookingConfirmationEmail({
+      console.log(`✓ Traveler ${i + 1} created with ID:`, createdTraveler.id);
+
+      // Email sending
+      console.log(`=== EMAIL SENDING FOR TRAVELER ${i + 1} ===`);
+      if (t.contact?.emailAddress) {
+        const emailData = {
           toEmail: t.contact.emailAddress,
-          toName: `${t.name.firstName || t.firstName} ${
-            t.name.lastName || t.lastName
+          toName: `${t.name?.firstName || t.firstName} ${
+            t.name?.lastName || t.lastName
           }`,
           bookingId: booking.id,
           flightOffer,
-        });
+        };
+
+        console.log(`Sending confirmation email to:`, emailData.toEmail);
+        console.log(`Email data:`, JSON.stringify(emailData, null, 2));
+
+        try {
+          await sendBookingConfirmationEmail(emailData);
+          console.log(`✓ Confirmation email sent to traveler ${i + 1}`);
+        } catch (emailError) {
+          console.error(
+            `Email sending failed for traveler ${i + 1}:`,
+            emailError
+          );
+          // Don't fail the entire booking for email issues
+        }
+      } else {
+        console.warn(`No email address for traveler ${i + 1}, skipping email`);
       }
     }
+
+    // Final booking retrieval
+    console.log("=== FINAL BOOKING RETRIEVAL ===");
+    console.log("Fetching complete booking with addons...");
 
     const bookingWithAddons = await prisma.booking.findUnique({
       where: { id: booking.id },
       include: { FlightAddon: true },
     });
 
-    return res.status(201).json({
+    console.log(
+      "Final booking with addons:",
+      JSON.stringify(bookingWithAddons, null, 2)
+    );
+
+    // Success response
+    console.log("=== SUCCESS RESPONSE ===");
+    const successResponse = {
       success: true,
       message:
         "Flight successfully booked with addons and confirmation emails sent",
@@ -2267,13 +2682,45 @@ export async function bookFlightWithOptionalAddons(
       originalTotalAmount: +originalTotalAmount.toFixed(2),
       addonTotal: +addonTotalNGN.toFixed(2),
       totalAmount: +totalAmountNGN.toFixed(2),
-    });
+      referenceId: booking.id, // Add this for easier tracking
+    };
+
+    console.log(
+      "Success response data:",
+      JSON.stringify(successResponse, null, 2)
+    );
+    console.log("=== BOOKING FUNCTION COMPLETED SUCCESSFULLY ===");
+
+    return res.status(201).json(successResponse);
   } catch (error: any) {
-    console.error("Booking Error:", error.response?.data || error.message);
+    console.error("=== BOOKING ERROR OCCURRED ===");
+    console.error("Error type:", typeof error);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+
+    if (error.response) {
+      console.error("HTTP Error Response:");
+      console.error("- Status:", error.response.status);
+      console.error("- Status Text:", error.response.statusText);
+      console.error("- Headers:", error.response.headers);
+      console.error("- Data:", JSON.stringify(error.response.data, null, 2));
+    }
+
+    if (error.request) {
+      console.error("HTTP Request Error:");
+      console.error("- Request config:", error.config);
+      console.error("- Request data:", error.request);
+    }
+
+    console.error("=== END ERROR DETAILS ===");
+
     return res.status(500).json({
       success: false,
       message: "Flight booking failed",
       error: error.response?.data || error.message,
+      errorType: error.name,
+      timestamp: new Date().toISOString(),
     });
   }
 }
