@@ -11,12 +11,12 @@ router.get(
 router.get(
   "/google/callback",
   passport.authenticate("google", {
-    failureRedirect: "https://manwhitareos.web.app/auth",
+    failureRedirect: "https://manwhit.lemonwares.com.ng/auth",
     // failureRedirect: "http://localhost:5173/auth",
     session: true,
   }),
   (req, res) => {
-    res.redirect("https://manwhitareos.web.app/home");
+    res.redirect("https://manwhit.lemonwares.com.ng/auth");
     // res.redirect("http://localhost:5173/home");
   }
 );
@@ -32,7 +32,7 @@ router.get("/current-user", (req: any, res: any) => {
 router.get("/logout", (req, res) => {
   req.logOut(() => {
     // res.redirect("http://localhost:5173/auth");
-    res.redirect("https://manwhitareos.web.app/auth");
+    res.redirect("https://manwhit.lemonwares.com.ng/auth");
   });
 });
 
