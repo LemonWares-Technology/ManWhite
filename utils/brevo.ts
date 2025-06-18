@@ -678,7 +678,7 @@ export async function sendBookingConfirmationEmails({
   }
 }
 
-export async function sendBookingConfirmationEmail({
+export async function sendBookingConfirmationEmailx({
   toEmail,
   toName,
   bookingId,
@@ -778,6 +778,152 @@ export async function sendBookingConfirmationEmail({
     }
   }
 
+  return { success: false, error: "Max retries exceeded" };
+}
+
+export async function sendBookingConfirmationEmail({
+  toEmail,
+  toName,
+  bookingId,
+  flightOffer,
+}: {
+  toEmail: string;
+  toName: string;
+  bookingId: string;
+  flightOffer: any;
+}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.warn("Brevo API key not set, skipping email send");
+    return { success: false, error: "API key not configured" };
+  }
+
+  const endpoint = "https://api.brevo.com/v3/smtp/email";
+
+  // Helper to format date
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  // Compose a minimal, clear itinerary summary
+  const itineraryHtml = flightOffer.itineraries
+    .map((itin: any, idx: number) => {
+      const segs = itin.segments
+        .map(
+          (seg: any) =>
+            `<tr>
+              <td style="padding:4px 8px;">${seg.departure.iataCode}</td>
+              <td style="padding:4px 8px;">${formatDate(seg.departure.at)}</td>
+              <td style="padding:4px 8px;">${seg.arrival.iataCode}</td>
+              <td style="padding:4px 8px;">${formatDate(seg.arrival.at)}</td>
+              <td style="padding:4px 8px;">${seg.carrierCode} ${seg.number}</td>
+            </tr>`
+        )
+        .join("");
+      return `
+        <h4 style="margin:10px 0 5px 0;">Itinerary ${idx + 1}</h4>
+        <table style="border-collapse:collapse;width:100%;font-size:14px;">
+          <thead>
+            <tr style="background:#f0f0f0;">
+              <th align="left" style="padding:4px 8px;">From</th>
+              <th align="left" style="padding:4px 8px;">Departure</th>
+              <th align="left" style="padding:4px 8px;">To</th>
+              <th align="left" style="padding:4px 8px;">Arrival</th>
+              <th align="left" style="padding:4px 8px;">Flight</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${segs}
+          </tbody>
+        </table>
+      `;
+    })
+    .join("");
+
+  // Only the essentials: greeting, booking ID, itinerary, and support
+  const htmlContent = `
+    <div style="max-width:600px;margin:0 auto;padding:24px;background:#fff;font-family:Arial,sans-serif;">
+      <h2 style="color:#007bff;">Your Flight Booking is Confirmed!</h2>
+      <p>Dear <b>${toName}</b>,</p>
+      <p>Thank you for booking with ManWhit Aroes. Your reservation is confirmed.</p>
+      <table style="margin:18px 0 24px 0;">
+        <tr>
+          <td style="color:#555;font-weight:500;">Booking ID:</td>
+          <td style="color:#222;font-weight:bold;">${bookingId}</td>
+        </tr>
+      </table>
+      <h3 style="color:#333;">Flight Itinerary</h3>
+      ${itineraryHtml}
+      <div style="margin:24px 0 0 0;padding:16px;background:#f8f9fa;border-radius:6px;">
+        <b>Next Steps:</b>
+        <ul style="margin:8px 0 0 18px;padding:0;">
+          <li>You'll receive your e-ticket within 24 hours.</li>
+          <li>Check-in opens 24 hours before departure.</li>
+          <li>Arrive at the airport at least 2 hours before your flight.</li>
+        </ul>
+      </div>
+      <p style="margin-top:32px;color:#888;">Need help? Contact us: <a href="mailto:support@manwhitareos.com" style="color:#007bff;">support@manwhitareos.com</a></p>
+      <p style="font-size:12px;color:#bbb;margin-top:20px;">&copy; 2025 ManWhit Aroes. All rights reserved.</p>
+    </div>
+  `;
+
+  const payload = {
+    sender: { name: "ManWhit Aroes", email: "no-reply@manwhitaroes.com" },
+    to: [{ email: toEmail, name: toName }],
+    subject: "Your ManWhit Aroes Flight Booking Confirmation",
+    htmlContent,
+  };
+
+  // Retry configuration
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(endpoint, payload, {
+        headers: {
+          "api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,
+      });
+      console.log(
+        `Booking confirmation email sent to ${toEmail} on attempt ${attempt}`
+      );
+      return { success: true, response: response.data };
+    } catch (emailError: any) {
+      console.error(`Email send attempt ${attempt} failed:`, {
+        message: emailError.message,
+        code: emailError.code,
+        hostname: emailError.hostname,
+        syscall: emailError.syscall,
+      });
+      const isNetworkError =
+        emailError.code === "EAI_AGAIN" ||
+        emailError.code === "ENOTFOUND" ||
+        emailError.code === "ECONNRESET" ||
+        emailError.code === "ETIMEDOUT";
+      if (attempt === maxRetries || !isNetworkError) {
+        console.error(
+          "Failed to send booking confirmation email after all retries:",
+          emailError.message
+        );
+        return {
+          success: false,
+          error: emailError.message,
+          code: emailError.code,
+        };
+      }
+      console.log(`Retrying in ${retryDelay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+  }
   return { success: false, error: "Max retries exceeded" };
 }
 
