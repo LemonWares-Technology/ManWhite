@@ -616,3 +616,188 @@ export const verifyFlutterwavePaymentWithEmail = async (
     });
   }
 };
+
+export async function sendBookingConfirmationEmails({
+  toEmail,
+  toName,
+  bookingId,
+  flightOffer,
+}: {
+  toEmail: string;
+  toName: string;
+  bookingId: string;
+  flightOffer: any;
+}) {
+  const apiKey = BREVO_API_KEY;
+  if (!apiKey) {
+    console.warn("Brevo API key not set, skipping email send");
+    return;
+  }
+
+  const endpoint = "https://api.brevo.com/v3/smtp/email";
+
+  // Prepare a simple flight details summary for the email
+  const flightDetailsSummary = flightOffer.itineraries
+    .map((itinerary: any, idx: number) => {
+      const segments = itinerary.segments
+        .map(
+          (segment: any) =>
+            `${segment.departure.iataCode} → ${segment.arrival.iataCode} (${
+              segment.departure.at.split("T")[0]
+            })`
+        )
+        .join(", ");
+      return `Itinerary ${idx + 1}: ${segments}`;
+    })
+    .join("<br>");
+
+  const payload = {
+    sender: { name: "ManWhit Aroes", email: "no-reply@manwhitaroes.com" },
+    to: [{ email: toEmail, name: toName }],
+    subject: "Your ManWhit Aroes Flight Booking Confirmation",
+    htmlContent: `
+      <p>Dear ${toName},</p>
+      <p>Thank you for booking your flight with ManWhit Aroes.</p>
+      <p><strong>Booking ID:</strong> ${bookingId}</p>
+      <p><strong>Flight Details:</strong><br>${flightDetailsSummary}</p>
+      <p>We wish you a pleasant journey!</p>
+      <p>Best regards,<br>ManWhit Aroes Team</p>
+    `,
+  };
+
+  try {
+    await axios.post(endpoint, payload, {
+      headers: {
+        "api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+    });
+    console.log(`Booking confirmation email sent to ${toEmail}`);
+  } catch (emailError) {
+    console.error("Failed to send booking confirmation email:", emailError);
+  }
+}
+
+export async function sendBookingConfirmationEmail({
+  toEmail,
+  toName,
+  bookingId,
+  flightOffer,
+}: {
+  toEmail: string;
+  toName: string;
+  bookingId: string;
+  flightOffer: any;
+}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.warn("Brevo API key not set, skipping email send");
+    return { success: false, error: "API key not configured" };
+  }
+
+  const endpoint = "https://api.brevo.com/v3/smtp/email";
+
+  // Prepare a simple flight details summary for the email
+  const flightDetailsSummary = flightOffer.itineraries
+    .map((itinerary: any, idx: number) => {
+      const segments = itinerary.segments
+        .map(
+          (segment: any) =>
+            `${segment.departure.iataCode} → ${segment.arrival.iataCode} (${
+              segment.departure.at.split("T")[0]
+            })`
+        )
+        .join(", ");
+      return `Itinerary ${idx + 1}: ${segments}`;
+    })
+    .join("<br>");
+
+  const payload = {
+    sender: { name: "ManWhit Aroes", email: "no-reply@manwhitaroes.com" },
+    to: [{ email: toEmail, name: toName }],
+    subject: "Your ManWhit Aroes Flight Booking Confirmation",
+    htmlContent: `
+      <p>Dear ${toName},</p>
+      <p>Thank you for booking your flight with ManWhit Aroes.</p>
+      <p><strong>Booking ID:</strong> ${bookingId}</p>
+      <p><strong>Flight Details:</strong><br>${flightDetailsSummary}</p>
+      <p>We wish you a pleasant journey!</p>
+      <p>Best regards,<br>ManWhit Aroes Team</p>
+    `,
+  };
+
+  // Retry configuration
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(endpoint, payload, {
+        headers: {
+          "api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        timeout: 30000, // 30 second timeout
+      });
+
+      console.log(
+        `Booking confirmation email sent to ${toEmail} on attempt ${attempt}`
+      );
+      return { success: true, response: response.data };
+    } catch (emailError: any) {
+      console.error(`Email send attempt ${attempt} failed:`, {
+        message: emailError.message,
+        code: emailError.code,
+        hostname: emailError.hostname,
+        syscall: emailError.syscall,
+      });
+
+      // Check if it's a DNS/network error that might benefit from retry
+      const isNetworkError =
+        emailError.code === "EAI_AGAIN" ||
+        emailError.code === "ENOTFOUND" ||
+        emailError.code === "ECONNRESET" ||
+        emailError.code === "ETIMEDOUT";
+
+      // If this is the last attempt or not a network error, don't retry
+      if (attempt === maxRetries || !isNetworkError) {
+        console.error(
+          "Failed to send booking confirmation email after all retries:",
+          emailError.message
+        );
+        return {
+          success: false,
+          error: emailError.message,
+          code: emailError.code,
+        };
+      }
+
+      // Wait before retrying
+      console.log(`Retrying in ${retryDelay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+  }
+
+  return { success: false, error: "Max retries exceeded" };
+}
+
+export const sendPaymentSuccessEmailWithRetry = async (
+  paymentData: any,
+  bookingData: any,
+  retries = 3,
+  delay = 1000
+) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await sendPaymentSuccessEmail(paymentData, bookingData);
+    } catch (error: any) {
+      if (error.code === "EAI_AGAIN" && i < retries - 1) {
+        console.warn(`Brevo DNS error, retrying in ${delay}ms...`);
+        await new Promise((res) => setTimeout(res, delay));
+        delay *= 2;
+      } else {
+        throw error;
+      }
+    }
+  }
+};

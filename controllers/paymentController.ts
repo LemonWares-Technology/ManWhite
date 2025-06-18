@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import axios from "axios";
 import { Stripe } from "stripe";
 import env from "dotenv";
-import { sendPaymentSuccessEmail } from "../utils/brevo";
+import {
+  sendPaymentSuccessEmail,
+  sendPaymentSuccessEmailWithRetry,
+} from "../utils/brevo";
 import { PrismaClient } from "@prisma/client";
 env.config();
 
@@ -101,11 +104,10 @@ export const initializePayment = async (
     if (!amount || !email || !currency) {
       return res.status(400).json({
         status: "error",
-        message: "Missing required parameters: amount and email",
+        message: "Missing required parameters: amount, email, or currency",
       });
     }
 
-    // Validate currency
     const supportedCurrencies = ["NGN", "USD"];
     if (!supportedCurrencies.includes(currency)) {
       return res.status(400).json({
@@ -116,31 +118,30 @@ export const initializePayment = async (
       });
     }
 
-    // Generate a unique transaction reference
     const tx_ref = `FLIGHT-${Date.now()}-${Math.floor(
       Math.random() * 1000000
     )}`;
 
-    // Determine payment options based on currency
     const getPaymentOptions = (curr: string) => {
       switch (curr) {
         case "USD":
-          return "card"; // International cards for foreign currencies
+          return "card";
         case "NGN":
         default:
-          return "card,banktransfer,ussd"; // More options for NGN
+          return "card,banktransfer,ussd";
       }
     };
 
-    // Initialize payment with Flutterwave
     const response: any = await axios.post(
       "https://api.flutterwave.com/v3/payments",
       {
         tx_ref,
         amount,
-        currency: currency,
+        currency,
         payment_options: getPaymentOptions(currency),
-        redirect_url: `${FRONTEND_URL}/auth/success`,
+        redirect_url: `${
+          process.env.FRONTEND_URL || FRONTEND_URL
+        }/auth/success`,
         customer: {
           email,
           phone_number: bookingData?.guestInfo?.phone,
@@ -161,33 +162,33 @@ export const initializePayment = async (
       },
       {
         headers: {
-          Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+          Authorization: `Bearer ${
+            process.env.FLUTTERWAVE_SECRET_KEY || FLUTTERWAVE_SECRET_KEY
+          }`,
           "Content-Type": "application/json",
         },
       }
     );
 
-    // Return the payment link and configuration
-    console.log(`Currency BE: `, currency);
     return res.status(200).json({
       status: "success",
       data: {
-        publicKey: FLUTTERWAVE_PUBLIC_KEY,
+        publicKey: process.env.FLUTTERWAVE_PUBLIC_KEY || FLUTTERWAVE_PUBLIC_KEY,
         reference: tx_ref,
-        amount: amount,
-        currency: currency,
+        amount,
+        currency,
         paymentLink: response.data.data.link,
       },
     });
   } catch (error: any) {
     console.error(
       "Payment initialization error:",
-      error.response?.data || error
+      error?.response?.data || error
     );
     return res.status(500).json({
       status: "error",
       message: "Error initializing payment",
-      error: error.response?.data?.message || error.message,
+      error: error?.response?.data?.message || error.message,
     });
   }
 };
@@ -359,7 +360,9 @@ export const verifyFlutterwavePaymentWithEmail = async (
       )}`,
       {
         headers: {
-          Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+          Authorization: `Bearer ${
+            process.env.FLUTTERWAVE_SECRET_KEY || FLUTTERWAVE_SECRET_KEY
+          }`,
         },
         timeout: 10000,
       }
@@ -380,18 +383,30 @@ export const verifyFlutterwavePaymentWithEmail = async (
       });
     }
 
-    // Get userId from paymentData.meta.bookingData or your own logic
-    const userId = paymentData.meta?.bookingData?.userId;
-    if (userId) {
-      // Clear the cart for this user
-      await prisma.flightCart.deleteMany({
-        where: { userId },
-      });
+    // Parse meta.bookingData if it's a string
+    let bookingData = paymentData.meta?.bookingData;
+    if (typeof bookingData === "string") {
+      try {
+        bookingData = JSON.parse(bookingData);
+      } catch {
+        bookingData = null;
+      }
     }
 
-    sendPaymentSuccessEmail(paymentData, paymentData.meta?.bookingData).catch(
-      (error) => console.error("Email sending failed:", error)
-    );
+    const userId = bookingData?.userId;
+    if (userId) {
+      await prisma.flightCart.deleteMany({ where: { userId } });
+    }
+
+    // Send payment success email only if customer email exists
+    if (paymentData.customer?.email) {
+      try {
+        await sendPaymentSuccessEmailWithRetry(paymentData, bookingData);
+      } catch (emailError) {
+        // Log but don't block the response
+        console.error("Email sending failed:", emailError);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -406,8 +421,15 @@ export const verifyFlutterwavePaymentWithEmail = async (
   } catch (error: any) {
     console.error("Payment verification error:", error);
 
+    if (error.code === "EAI_AGAIN") {
+      return res.status(504).json({
+        success: false,
+        error: "NETWORK_ERROR",
+        message: "DNS/network error. Please try again.",
+      });
+    }
+
     if (error.response) {
-      // Flutterwave API error
       return res.status(502).json({
         success: false,
         error: "GATEWAY_ERROR",
@@ -415,21 +437,18 @@ export const verifyFlutterwavePaymentWithEmail = async (
         details: error.response.data?.message || "Flutterwave API error",
       });
     } else if (error.request) {
-      // No response received
       return res.status(504).json({
         success: false,
         error: "NETWORK_ERROR",
         message: "No response from payment gateway",
       });
     } else {
-      // Setup error
       return res.status(500).json({
         success: false,
         error: "SERVER_ERROR",
         message: "Internal server error during verification",
       });
     }
-    //   }
   }
 };
 
