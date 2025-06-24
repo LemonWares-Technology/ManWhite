@@ -106,6 +106,114 @@ export async function initiateHotelBookingTemplate(
     }
   );
 
-
   return response?.data;
 }
+
+// Helper function to generate booking reference
+export function generateBookingReference(): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+  return `HTL${timestamp}${random}`;
+}
+
+// Helper function to extract total amount from response
+export function extractTotalAmount(amadeusResponse: any): number | null {
+  try {
+    return (
+      amadeusResponse.data?.price?.total ||
+      amadeusResponse.data?.totalPrice ||
+      amadeusResponse.data?.booking?.totalPrice ||
+      null
+    );
+  } catch (error) {
+    console.warn("Could not extract total amount:", error);
+    return null;
+  }
+}
+
+// Helper function to extract currency from response
+export function extractCurrency(amadeusResponse: any): string {
+  try {
+    return (
+      amadeusResponse.data?.price?.currency ||
+      amadeusResponse.data?.currency ||
+      amadeusResponse.data?.booking?.currency ||
+      "USD"
+    );
+  } catch (error) {
+    console.warn("Could not extract currency:", error);
+    return "USD";
+  }
+}
+
+// Helper function to extract Amadeus reference ID
+export function extractAmadeusReference(amadeusResponse: any): string | null {
+  try {
+    return (
+      amadeusResponse.data?.id ||
+      amadeusResponse.data?.bookingId ||
+      amadeusResponse.data?.confirmationNumber ||
+      null
+    );
+  } catch (error) {
+    console.warn("Could not extract Amadeus reference:", error);
+    return null;
+  }
+}
+
+export function generateCarBookingReference(): string {
+  const prefix = "CAR"; // Car prefix
+  const timestamp = Date.now().toString().slice(-6);
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}${timestamp}${random}`;
+}
+
+// Helper functions to extract information from Amadeus response
+export function extractCarTotalAmount(amadeusResponse: any): number | null {
+  try {
+    // Adjust based on actual Amadeus car booking response structure
+    return (
+      amadeusResponse.data?.quotation?.totalPrice?.amount ||
+      amadeusResponse.data?.price?.total ||
+      null
+    );
+  } catch (error) {
+    console.warn("Could not extract total amount from car booking response");
+    return null;
+  }
+}
+
+export function extractCarCurrency(amadeusResponse: any): string {
+  try {
+    // Adjust based on actual Amadeus car booking response structure
+    return (
+      amadeusResponse.data?.quotation?.totalPrice?.currency ||
+      amadeusResponse.data?.price?.currency ||
+      "USD"
+    );
+  } catch (error) {
+    console.warn("Could not extract currency from car booking response");
+    return "USD";
+  }
+}
+
+export function extractCarAmadeusReference(
+  amadeusResponse: any
+): string | null {
+  try {
+    // Adjust based on actual Amadeus car booking response structure
+    return (
+      amadeusResponse.data?.id ||
+      amadeusResponse.data?.confirmationNumber ||
+      amadeusResponse.data?.reference ||
+      null
+    );
+  } catch (error) {
+    console.warn(
+      "Could not extract Amadeus reference from car booking response"
+    );
+    return null;
+  }
+}
+
+// Additional helper function to clear cart separately if needed

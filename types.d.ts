@@ -6,6 +6,7 @@ declare global {
   namespace Express {
     interface Request {
       User?: {
+        id: string;
         userId: string;
         role: string;
       };
@@ -13,4 +14,14 @@ declare global {
   }
 }
 
+// types/index.ts
 
+export interface AuthenticatedRequest extends Request {
+  user?: {
+    id?: string;
+    userId?: string;
+    email?: string;
+    role?: string;
+    [key: string]: any;
+  } | null;
+}

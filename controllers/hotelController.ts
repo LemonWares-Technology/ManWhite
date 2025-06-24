@@ -3,6 +3,12 @@ import getAmadeusToken from "../utils/getToken";
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { v4 as uuid } from "uuid";
+import {
+  extractAmadeusReference,
+  extractCurrency,
+  extractTotalAmount,
+  generateBookingReference,
+} from "../utils/helper";
 
 const baseURL: string = "https://test.api.amadeus.com";
 
@@ -904,142 +910,323 @@ export async function getHotelRating(
   }
 }
 
-/// Booking Hotel
+// /// Booking Hotel
+// export async function bookHotel(req: Request, res: Response): Promise<any> {
+//   try {
+//     const { data } = req.body;
+
+//     if (!data) {
+//       return res
+//         .status(400)
+//         .json({ error: "Missing 'data' object in request body" });
+//     }
+
+//     const { guests, roomAssociations, payment, travelAgent } = data;
+
+//     // Basic validation
+//     if (!guests || !Array.isArray(guests) || guests.length === 0) {
+//       return res.status(400).json({ error: "At least one guest is required" });
+//     }
+
+//     if (
+//       !roomAssociations ||
+//       !Array.isArray(roomAssociations) ||
+//       roomAssociations.length === 0
+//     ) {
+//       return res
+//         .status(400)
+//         .json({ error: "roomAssociations with hotelOfferId is required" });
+//     }
+
+//     if (!payment) {
+//       return res.status(400).json({ error: "Payment information is required" });
+//     }
+
+//     // Validate presence of tid in each guest and guestReferences in roomAssociations
+//     for (const guest of guests) {
+//       if (typeof guest.tid === "undefined") {
+//         return res
+//           .status(400)
+//           .json({ error: "Each guest must have a 'tid' field" });
+//       }
+//     }
+
+//     for (const room of roomAssociations) {
+//       if (
+//         !room.guestReferences ||
+//         !Array.isArray(room.guestReferences) ||
+//         room.guestReferences.length === 0
+//       ) {
+//         return res.status(400).json({
+//           error:
+//             "Each roomAssociation must have a non-empty 'guestReferences' array",
+//         });
+//       }
+//       for (const ref of room.guestReferences) {
+//         if (typeof ref.guestReference === "undefined") {
+//           return res.status(400).json({
+//             error:
+//               "Each guestReference in roomAssociations must have a 'guestReference' field",
+//           });
+//         }
+//       }
+//     }
+
+//     // Ensure the 'type' field is set to "hotel-order"
+//     if (data.type !== "hotel-order") {
+//       data.type = "hotel-order";
+//     }
+
+//     // Build the booking payload exactly as required by Amadeus API
+//     const bookingPayload = { data };
+
+//     // Get Amadeus OAuth token
+//     const token = await getAmadeusToken();
+
+//     // Log payload for debugging (remove in production)
+//     console.log("Booking payload:", JSON.stringify(bookingPayload, null, 2));
+
+//     // Call Amadeus Hotel Booking API
+//     const response: any = await axios.post(
+//       `${baseURL}/v2/booking/hotel-orders`,
+//       bookingPayload,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${token}`,
+//           "Content-Type": "application/json",
+//           Accept: "application/json",
+//         },
+//         timeout: 30000,
+//       }
+//     );
+
+//     const amadeusResponse = response.data?.data;
+
+//     // Generate your own unique reference for internal tracking
+//     const referenceId = uuid();
+
+//     // Extract booking details for your DB storage
+//     const bookingDetails = {
+//       guests,
+//       roomAssociations,
+//       hotelOfferId: roomAssociations[0]?.hotelOfferId,
+//       checkInDate: amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.checkInDate,
+//       checkOutDate:
+//         amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.checkOutDate,
+//       hotelName: amadeusResponse?.hotelBookings?.[0]?.hotel?.name,
+//       address: amadeusResponse?.hotelBookings?.[0]?.hotel?.address,
+//       confirmationNumber:
+//         amadeusResponse?.hotelBookings?.[0]?.hotelProviderInformation?.[0]
+//           ?.confirmationNumber,
+//     };
+
+//     // Save booking record in your database
+//     const booking = await prisma.booking.create({
+//       data: {
+//         referenceId,
+//         type: "HOTEL",
+//         status: "CONFIRMED",
+//         apiProvider: "AMADEUS",
+//         apiReferenceId: amadeusResponse?.id,
+//         apiResponse: amadeusResponse,
+//         bookingDetails,
+//         totalAmount: amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.price
+//           ?.total
+//           ? parseFloat(amadeusResponse.hotelBookings[0].hotelOffer.price.total)
+//           : undefined,
+//         currency:
+//           amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.price?.currency ||
+//           "EUR",
+//       },
+//     });
+
+//     return res.status(200).json({
+//       message: "Hotel successfully booked",
+//       bookingId: amadeusResponse?.id,
+//       confirmationNumber: bookingDetails.confirmationNumber,
+//       data: amadeusResponse,
+//       bookingRecord: booking,
+//     });
+//   } catch (error: any) {
+//     console.error(
+//       "Error booking hotel:",
+//       error.response?.data || error.message
+//     );
+
+//     if (error.response) {
+//       return res.status(error.response.status).json({
+//         error: error.response.data || error.message,
+//       });
+//     }
+
+//     return res.status(500).json({
+//       error: "Internal server error",
+//     });
+//   }
+// }
+
+// /// Booking Hotel
+
+// Helper function to extract Amadeus reference ID
 export async function bookHotel(req: Request, res: Response): Promise<any> {
   try {
     const { data } = req.body;
 
+    // Get user context from request (adjust based on your auth implementation)
+    const currentUserId = req.User?.id || null; // Assuming you have user in req from auth middleware
+
     if (!data) {
-      return res
-        .status(400)
-        .json({ error: "Missing 'data' object in request body" });
+      return res.status(400).json({
+        error: "Missing booking data",
+      });
     }
 
-    const { guests, roomAssociations, payment, travelAgent } = data;
-
-    // Basic validation
-    if (!guests || !Array.isArray(guests) || guests.length === 0) {
-      return res.status(400).json({ error: "At least one guest is required" });
+    // Validate required fields
+    if (!data.guests || data.guests.length === 0) {
+      return res.status(400).json({
+        error: "At least one guest is required",
+      });
     }
 
-    if (
-      !roomAssociations ||
-      !Array.isArray(roomAssociations) ||
-      roomAssociations.length === 0
-    ) {
-      return res
-        .status(400)
-        .json({ error: "roomAssociations with hotelOfferId is required" });
-    }
-
-    if (!payment) {
-      return res.status(400).json({ error: "Payment information is required" });
-    }
-
-    // Validate presence of tid in each guest and guestReferences in roomAssociations
-    for (const guest of guests) {
-      if (typeof guest.tid === "undefined") {
-        return res
-          .status(400)
-          .json({ error: "Each guest must have a 'tid' field" });
-      }
-    }
-
-    for (const room of roomAssociations) {
-      if (
-        !room.guestReferences ||
-        !Array.isArray(room.guestReferences) ||
-        room.guestReferences.length === 0
-      ) {
-        return res.status(400).json({
-          error:
-            "Each roomAssociation must have a non-empty 'guestReferences' array",
-        });
-      }
-      for (const ref of room.guestReferences) {
-        if (typeof ref.guestReference === "undefined") {
-          return res.status(400).json({
-            error:
-              "Each guestReference in roomAssociations must have a 'guestReference' field",
-          });
-        }
-      }
-    }
-
-    // Ensure the 'type' field is set to "hotel-order"
-    if (data.type !== "hotel-order") {
-      data.type = "hotel-order";
-    }
-
-    // Build the booking payload exactly as required by Amadeus API
-    const bookingPayload = { data };
-
-    // Get Amadeus OAuth token
+    // Get Amadeus access token
     const token = await getAmadeusToken();
 
-    // Log payload for debugging (remove in production)
-    console.log("Booking payload:", JSON.stringify(bookingPayload, null, 2));
-
-    // Call Amadeus Hotel Booking API
-    const response: any = await axios.post(
-      `${baseURL}/v2/booking/hotel-orders`,
-      bookingPayload,
+    // Make booking request to Amadeus
+    const amadeusResponse: any = await axios.post(
+      `${process.env.AMADEUS_BASE_URL || `${baseURL}`}/v2/booking/hotel-orders`,
+      { data },
       {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
-        timeout: 30000,
       }
     );
 
-    const amadeusResponse = response.data?.data;
+    // Extract guest information
+    const primaryGuest = data.guests[0];
+    const guestEmail = primaryGuest.email;
 
-    // Generate your own unique reference for internal tracking
-    const referenceId = uuid();
+    let userId: string | null = null;
+    let guestUserId: string | null = null;
 
-    // Extract booking details for your DB storage
-    const bookingDetails = {
-      guests,
-      roomAssociations,
-      hotelOfferId: roomAssociations[0]?.hotelOfferId,
-      checkInDate: amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.checkInDate,
-      checkOutDate:
-        amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.checkOutDate,
-      hotelName: amadeusResponse?.hotelBookings?.[0]?.hotel?.name,
-      address: amadeusResponse?.hotelBookings?.[0]?.hotel?.address,
-      confirmationNumber:
-        amadeusResponse?.hotelBookings?.[0]?.hotelProviderInformation?.[0]
-          ?.confirmationNumber,
-    };
+    // If we have a current user and their email matches, use their ID
+    if (currentUserId) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: currentUserId },
+      });
 
-    // Save booking record in your database
+      if (currentUser && currentUser.email === guestEmail) {
+        userId = currentUserId;
+      }
+    }
+
+    // If no user match, try to find existing user by email
+    if (!userId) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: guestEmail },
+      });
+
+      if (existingUser) {
+        userId = existingUser.id;
+      } else {
+        // Create or update guest user
+        const guestUser = await prisma.guestUser.upsert({
+          where: { email: guestEmail },
+          update: {
+            firstName: primaryGuest.firstName,
+            lastName: primaryGuest.lastName,
+            phone: primaryGuest.phone || null,
+          },
+          create: {
+            email: guestEmail,
+            firstName: primaryGuest.firstName,
+            lastName: primaryGuest.lastName,
+            phone: primaryGuest.phone || null,
+          },
+        });
+        guestUserId = guestUser.id;
+      }
+    }
+
+    // Create booking in database
     const booking = await prisma.booking.create({
       data: {
-        referenceId,
+        userId: userId,
+        guestUserId: guestUserId,
+        referenceId: generateBookingReference(),
         type: "HOTEL",
-        status: "CONFIRMED",
+        status: "CONFIRMED", // Assuming successful Amadeus booking means confirmed
+        apiResponse: amadeusResponse.data,
+        bookingDetails: {
+          hotelOfferId: data.roomAssociations?.[0]?.hotelOfferId || null,
+          guests: data.guests,
+          roomAssociations: data.roomAssociations || [],
+          travelAgent: data.travelAgent || null,
+          checkIn: data.checkIn || null,
+          checkOut: data.checkOut || null,
+        },
+        totalAmount: extractTotalAmount(amadeusResponse),
+        currency: extractCurrency(amadeusResponse),
         apiProvider: "AMADEUS",
-        apiReferenceId: amadeusResponse?.id,
-        apiResponse: amadeusResponse,
-        bookingDetails,
-        totalAmount: amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.price
-          ?.total
-          ? parseFloat(amadeusResponse.hotelBookings[0].hotelOffer.price.total)
-          : undefined,
-        currency:
-          amadeusResponse?.hotelBookings?.[0]?.hotelOffer?.price?.currency ||
-          "EUR",
+        apiReferenceId: extractAmadeusReference(amadeusResponse),
+        verified: true, // Assuming Amadeus booking is verified
       },
     });
 
-    return res.status(200).json({
-      message: "Hotel successfully booked",
-      bookingId: amadeusResponse?.id,
-      confirmationNumber: bookingDetails.confirmationNumber,
-      data: amadeusResponse,
-      bookingRecord: booking,
+    // Create traveler records for each guest
+    const travelerPromises = data.guests.map((guest: any, index: number) => {
+      return prisma.traveler.create({
+        data: {
+          bookingId: booking.id,
+          userId: userId,
+          guestUserId: guestUserId,
+          firstName: guest.firstName,
+          lastName: guest.lastName,
+          email: guest.email,
+          phone: guest.phone || "",
+          countryCode: guest.countryCode || "",
+          gender:
+            guest.title === "MR"
+              ? "MALE"
+              : guest.title === "MRS" || guest.title === "MS"
+              ? "FEMALE"
+              : "OTHER",
+          dateOfBirth: guest.dateOfBirth
+            ? new Date(guest.dateOfBirth)
+            : new Date("1990-01-01"), // Default if not provided
+          // Add other fields as available in your guest data
+        },
+      });
+    });
+
+    await Promise.all(travelerPromises);
+
+    // Fetch the complete booking with relations
+    const completeBooking = await prisma.booking.findUnique({
+      where: { id: booking.id },
+      include: {
+        user: true,
+        guestUser: true,
+        travelers: true,
+      },
+    });
+
+    // Return success response
+    return res.status(201).json({
+      success: true,
+      message: "Hotel booking completed successfully",
+      booking: {
+        id: completeBooking?.id,
+        referenceId: completeBooking?.referenceId,
+        status: completeBooking?.status,
+        totalAmount: completeBooking?.totalAmount,
+        currency: completeBooking?.currency,
+        apiReferenceId: completeBooking?.apiReferenceId,
+        createdAt: completeBooking?.createdAt,
+        travelers: completeBooking?.travelers,
+      },
+      amadeusResponse: amadeusResponse.data,
     });
   } catch (error: any) {
     console.error(
@@ -1047,14 +1234,33 @@ export async function bookHotel(req: Request, res: Response): Promise<any> {
       error.response?.data || error.message
     );
 
-    if (error.response) {
-      return res.status(error.response.status).json({
-        error: error.response.data || error.message,
+    // If it's an Amadeus API error, return specific error
+    if (error.response?.data) {
+      return res.status(error.response.status || 500).json({
+        error: "Amadeus API Error",
+        details: error.response.data,
+        message:
+          error.response.data.error_description ||
+          error.response.data.message ||
+          "Hotel booking failed",
       });
     }
 
+    // If it's a database error
+    if (error.code === "P2002") {
+      return res.status(409).json({
+        error: "Booking reference already exists",
+        message: "Please try again",
+      });
+    }
+
+    // Generic error
     return res.status(500).json({
       error: "Internal server error",
+      message: error.message || "An unexpected error occurred",
     });
+  } finally {
+    // Clean up Prisma connection
+    await prisma.$disconnect();
   }
 }

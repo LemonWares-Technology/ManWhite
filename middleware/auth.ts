@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt, { decode } from "jsonwebtoken";
 import env from "dotenv";
+import { AuthenticatedRequest } from "../types";
 env.config();
 
 const JWT_SECRET = process.env.JWT || "code";
@@ -65,3 +66,57 @@ export function authenticateAdmin(
     });
   }
 }
+
+// export const optionalAuthentication = (
+//   req: AuthenticatedRequest,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   const authHeader = req.headers["authorization"];
+//   const token = authHeader && authHeader.split(" ")[1];
+
+//   // If no token provided, continue without authentication (guest user)
+//   if (!token) {
+//     req.user = null;
+//     return next();
+//   }
+
+//   try {
+//     // If token is provided, verify it
+//     const decoded = jwt.verify(token, process.env.JWT as string) as any;
+//     req.user = decoded;
+//     next();
+//   } catch (error) {
+//     // If token is invalid, treat as guest user instead of throwing error
+//     console.warn("Invalid token provided, treating as guest user:", error);
+//     req.user = null;
+//     next();
+//   }
+// };
+
+export const optionalAuthentication = (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  // If no token provided, continue without authentication (guest user)
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  try {
+    // If token is provided, verify it
+    const decoded = jwt.verify(token, process.env.JWT as string) as any;
+    req.user = decoded;
+    next();
+  } catch (error) {
+    // If token is invalid, treat as guest user instead of throwing error
+    console.warn("Invalid token provided, treating as guest user:", error);
+    req.user = null;
+    next();
+  }
+};

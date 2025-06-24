@@ -1,10 +1,14 @@
-import nodemailer from "nodemailer";
-import { EmailStatus, PrismaClient, Role } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
 import { sendToken } from "../config/emailServices";
+import {
+  SendSmtpEmail,
+  TransactionalEmailsApi,
+  TransactionalEmailsApiApiKeys,
+} from "@getbrevo/brevo";
 import env from "dotenv";
 env.config();
 
@@ -866,7 +870,9 @@ export const addExistingAddonsToFlightOffer = async (
       where: { id: { in: addonIds } },
     });
     if (existingAddons.length !== addonIds.length) {
-      return res.status(400).json({ message: "One or more addonIds are invalid" });
+      return res
+        .status(400)
+        .json({ message: "One or more addonIds are invalid" });
     }
 
     // Update addons to link to flight offer
@@ -913,15 +919,15 @@ export const removeAddonsFromFlightOffer = async (
 
     // Verify all addonIds are currently linked to this flight offer
     const existingAddons = await prisma.flightAddon.findMany({
-      where: { 
+      where: {
         id: { in: addonIds },
-        flightOfferId: flightOfferId 
+        flightOfferId: flightOfferId,
       },
     });
 
     if (existingAddons.length !== addonIds.length) {
-      return res.status(400).json({ 
-        message: "One or more addonIds are not linked to this flight offer" 
+      return res.status(400).json({
+        message: "One or more addonIds are not linked to this flight offer",
       });
     }
 
@@ -942,3 +948,76 @@ export const removeAddonsFromFlightOffer = async (
     });
   }
 };
+
+export async function sendEmailBookingProcess(
+  req: Request,
+  res: Response
+): Promise<any> {
+  try {
+    const { adminEmail, customerName, subject, customerEmail, text } = req.body;
+
+    // Instantiate the API client
+    const apiInstance = new TransactionalEmailsApi();
+
+    // Set the API key using the provided method
+    apiInstance.setApiKey(
+      TransactionalEmailsApiApiKeys.apiKey,
+      process.env.BREVO_API_KEY ||
+        "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"
+    );
+
+    // Create the email payload
+    const sendSmtpEmail = new SendSmtpEmail();
+    sendSmtpEmail.sender = {
+      name: "Manwhit Aroes",
+      email: adminEmail || "mails@manwhit.com",
+    };
+    sendSmtpEmail.to = [{ email: customerEmail, name: customerName }];
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = `<html><body><p>${text}</p></body></html>`;
+
+    // Send the transactional email
+    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+
+    return res
+      .status(200)
+      .json({ message: "Email sent successfully", data: response });
+  } catch (error: any) {
+    console.error("Error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+export async function getUserRole(req: Request, res: Response): Promise<any> {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: `Missing required parameter: id`,
+      });
+    }
+
+    const account = await prisma.user.findUnique({
+      where: { email: email },
+      select: { role: true },
+    });
+
+    if (!account) {
+      return res.status(404).json({
+        message: `Account does not exist`,
+      });
+    }
+
+    return res.status(200).json({
+      message: `Success`,
+      data: account,
+    });
+  } catch (error: any) {
+    console.error(`Error:`, error);
+
+    return res.status(500).json({
+      message: `Internal server error`,
+    });
+  }
+}

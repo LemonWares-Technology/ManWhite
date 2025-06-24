@@ -1,3 +1,4 @@
+import { optionalAuthentication } from "./../middleware/auth";
 import express from "express";
 import {
   bookHotel,
@@ -18,6 +19,6 @@ router.route("/hotel-offer-search").get(hotelOfferSearch); // Working perfectly
 router.route("/hotels-with-offers").get(searchHotelsWithOffers); // working
 router.route("/hotel-offer-search/:offerId").get(getOfferPricing); // Working perfectly
 router.route("/ratings").get(getHotelRating); // Working perfectly
-router.route("/book-hotel").post(bookHotel); // Working perfectly
+router.route("/book-hotel").post(optionalAuthentication, bookHotel); // Working perfectly
 
 export default router;
