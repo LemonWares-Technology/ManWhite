@@ -30,6 +30,9 @@ export const mainApp = (app: Application) => {
   app.get("/", (req: Request, res: Response) => {
     res.send(`<a href="#" target="_blank">Successfully gotten</a>`);
   });
+  app.get("/health", (req: Request, res: Response) => {
+    res.send(`<a href="#" target="_blank">Health</a>`);
+  });
   app.use(
     session({
       secret: process.env.JWT!,
