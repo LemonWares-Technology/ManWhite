@@ -962,8 +962,7 @@ export async function sendEmailBookingProcess(
     // Set the API key using the provided method
     apiInstance.setApiKey(
       TransactionalEmailsApiApiKeys.apiKey,
-      process.env.BREVO_API_KEY ||
-        "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"
+      process.env.BREVO_API_KEY!
     );
 
     // Create the email payload
