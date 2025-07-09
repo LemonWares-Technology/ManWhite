@@ -26,7 +26,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
   try {
     const token = await getAmadeusToken();
 
-    console.log(token);
+    // console.log(token);
 
     // If keyword is provided, return location suggestions
     if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {

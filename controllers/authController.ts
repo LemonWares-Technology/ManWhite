@@ -46,7 +46,7 @@ export const createAccount = async (
     // await sendVerification(newUser);
     await sendVerificationEmail(newUser);
 
-    const { password: _, ...hidePassword } = newUser;
+    const { password, ...hidePassword } = newUser;
 
     return res.status(201).json({
       message: `Account created successfully`,
