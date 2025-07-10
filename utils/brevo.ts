@@ -316,8 +316,7 @@ export const sendPaymentSuccessEmail = async (
 // Account verification email using Brevo
 export const sendVerificationEmail = async (user: any) => {
   try {
-    const BASE_URL: string =
-      process.env.BASE_URL || "https://manwhitaroes.com";
+    const BASE_URL: string = process.env.BASE_URL || "https://manwhitaroes.com";
     const SUPPORT_EMAIL: string =
       process.env.SUPPORT_EMAIL || "help@manwhit.com";
 
@@ -944,6 +943,276 @@ export const sendPaymentSuccessEmailWithRetry = async (
       } else {
         throw error;
       }
+    }
+  }
+};
+
+// Sending verification code
+export const sendVerificationToken: any = async (user: {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  recoveryCode: string;
+}): Promise<void> => {
+  if (!user || !user.email || !user.id) {
+    console.error(`[sendVerificationToken] Invalid user data provided:`, user);
+    throw new Error("Invalid user data for verification email.");
+  }
+
+  if (!BREVO_API_KEY) {
+    console.warn(
+      "[sendVerificationToken] Brevo API key not set. Skipping verification email send."
+    );
+    return;
+  }
+
+  const userName =
+    `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email;
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Account Activation</title>
+        <style>
+          /* Basic Reset & Body Styles */
+          body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f8f9fa; /* Light background for the overall email */
+            line-height: 1.6;
+            color: #333;
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+          }
+          table, td, div, p, a {
+            mso-line-height-rule: exactly; /* Outlook-specific fix */
+          }
+          /* Container */
+          .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+          }
+          /* Header */
+          .header {
+            text-align: center;
+            padding: 30px 0;
+            background: linear-gradient(135deg,rgb(209, 54, 27),rgb(253, 4, 4));
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 30px;
+            color: white;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+          }
+          .header p {
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            color: #e3f2fd;
+          }
+          /* Main Content Area */
+          .content-area {
+            text-align: center;
+            padding: 0 20px;
+          }
+          .content-area h2 {
+            font-weight: bold;
+            margin: 20px 0 15px 0;
+            color: #333;
+            font-size: 24px;
+          }
+          .content-area p {
+            font-weight: 500;
+            margin: 0 auto 25px auto;
+            color: #555;
+            line-height: 1.6;
+            max-width: 90%;
+            font-size: 16px;
+          }
+          /* Button */
+          .button {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 20px 0;
+            background-color:rgb(255, 0, 0); /* Primary blue color */
+            color: white;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 17px;
+            transition: background-color 0.3s ease;
+          }
+          .button:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+          }
+          /* Support Section */
+          .support-text {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            max-width: 90%;
+            margin: 0 auto 30px auto;
+            color: #666;
+            line-height: 1.6;
+          }
+          .support-text a {
+            color: #007bff; /* Match primary button color or use a highlight */
+            font-weight: bold;
+            text-decoration: none;
+          }
+          /* Footer */
+          .footer {
+            text-align: center;
+            color: #999;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+          }
+          .footer p {
+            margin: 5px 0;
+          }
+          /* Responsive Styles */
+          @media only screen and (max-width: 620px) {
+            .email-container {
+              width: 100% !important;
+              border-radius: 0 !important;
+            }
+            .header, .content-area, .support-text, .footer {
+              padding-left: 15px !important;
+              padding-right: 15px !important;
+            }
+            .header h1 {
+              font-size: 24px !important;
+            }
+            .button {
+              padding: 12px 25px !important;
+              font-size: 15px !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="email-container">
+          <div class="header">
+            <h1>✈️ MANWHITAREOS</h1>
+            <p>Reset Account Password</p>
+          </div>
+
+          <div class="content-area">
+            <h2 style="color: #333;">Reset Password</h2>
+
+            <p>Dear ${userName},</p>
+            <p>You're just one step away from resetting your password and continuing your Manwhitaroes Journey. Use the verification code below to complete your password reset:</p>
+
+               <div class="support-text">
+  <div style="font-size: 32px; color: #dc3545; font-weight: bold; text-align: center;     margin-top: 15px; margin-bottom: 15px;">
+    ${user.recoveryCode}
+      </div>
+      </div>
+
+            <p style="font-size: 14px; color: #666; margin-top: 30px;">
+              If you did not request this, please ignore this email.
+            </p>
+          </div>
+
+     
+
+          <div class="footer">
+            <p>&copy; ${new Date().getFullYear()} Manwhit Areos. All rights reserved.</p>
+            <p>This is an automated email. Please do not reply.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    `;
+
+  try {
+    const payload = {
+      sender: {
+        name: SENDER_NAME,
+        email: SENDER_EMAIL,
+      },
+      to: [
+        {
+          email: user.email,
+          name: userName,
+        },
+      ],
+      subject: "Reset", // Subject for the email
+      htmlContent: htmlContent, // Provide the full HTML content
+      textContent: `
+                Welcome to Manwhit Areos!
+
+                Dear ${userName},
+
+                To activate your account, please click the following link:
+                ${`verificationLink`}
+
+                If you did not request this, please ignore this email.
+
+                Best regards,
+                The Manwhit Areos Team
+
+                Need help? Contact us at ${`contactemail`}
+
+                © ${new Date().getFullYear()} Manwhit Areos. All rights reserved.
+            `, // Plain text fallback
+      tags: ["account-verification", "welcome"],
+    };
+
+    console.log(
+      `[sendVerificationToken] Attempting to send verification email to ${user.email} using direct HTML content.`
+    );
+
+    const response: any = await axios.post(
+      "https://api.brevo.com/v3/smtp/email",
+      payload,
+      {
+        headers: {
+          "api-key": BREVO_API_KEY,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
+
+    console.log(
+      `[sendVerificationToken] Verification email sent successfully to ${user.email}. Brevo Message ID: ${response.data.messageId}`
+    );
+  } catch (error: any) {
+    console.error(
+      `[sendVerificationToken] Failed to send verification email to ${user.email}:`,
+      error?.response?.data || error?.message
+    );
+
+    if (error?.response?.status === 401) {
+      throw new Error(
+        "Brevo API authentication failed for verification email. Please check your API key."
+      );
+    } else if (error?.response?.status === 400) {
+      throw new Error(
+        `Brevo API error for verification email: ${
+          error?.response?.data?.message || "Invalid request"
+        }`
+      );
+    } else {
+      throw new Error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to send verification email"
+      );
     }
   }
 };

@@ -15,6 +15,7 @@ import {
   getTravelerForAmadeusBooking,
   getTravelersForAmadeusBooking,
   loginAccount,
+  requestPasswordReset,
   resetPassword,
   updateTravelerDetails,
   updateuserAccountDetails,
@@ -33,7 +34,10 @@ router.route("/login").post(loginAccount);
 // Authenticating if the password inputed matches the email account's details
 router.route("/:email/check-password").post(checkPassword); //Tested and working perfectly
 
-// Reseting the password
+// Requesting reset the password
+router.route("/request-reset-password").post(requestPasswordReset);
+
+// Resetting password
 router.route("/reset-password").post(resetPassword);
 
 // Creating new password

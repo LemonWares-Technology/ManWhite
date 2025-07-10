@@ -1,12 +1,11 @@
-import { GuestUser } from "./../node_modules/.prisma/client/index.d";
 import bcryptjs from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
-import { sendResetPassword, sendVerification } from "../config/emailServices";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { addMinutes, isBefore } from "date-fns";
 import { mapTravelerToAmadeusFormat } from "../utils/amadeusHelper";
-import { sendVerificationEmail } from "../utils/brevo";
+import { sendVerificationEmail, sendVerificationToken } from "../utils/brevo";
 
 const prisma = new PrismaClient();
 
@@ -272,32 +271,165 @@ export const checkPassword = async (
   }
 };
 
+export const requestPasswordReset = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: `Email is required.` });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        // Select only necessary fields for initial check and update
+        id: true,
+        email: true,
+        recoveryCode: true, // Include these to see their current state before update
+        recoveryCodeExpiresIn: true,
+      },
+    });
+
+    if (!user) {
+      console.log(
+        `[requestPasswordReset] User with email ${email} not found. Sending generic success message.`
+      );
+
+      return res.status(200).json({
+        message: `If an account with that email exists, a password reset code has been sent.`,
+      });
+    }
+
+    const recoveryCodeNumber = crypto.randomInt(10000, 90000);
+    const recoveryCode = recoveryCodeNumber.toString();
+    const recoveryCodeExpiresIn = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Perform the update and capture the result
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        recoveryCode,
+        recoveryCodeExpiresIn,
+        loginAttempts: 0,
+        loginLockedUntil: null,
+      },
+      select: {
+        // Select fields you want to see after the update
+        id: true,
+        email: true,
+        recoveryCode: true,
+        recoveryCodeExpiresIn: true,
+      },
+    });
+
+    await sendVerificationToken(user);
+    return res.status(200).json({
+      message: `If an account with that email exists, a password reset code has been sent.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      message: `Internal server error`,
+      data: error?.message,
+    });
+  }
+};
+
 export const resetPassword = async (
   req: Request,
   res: Response
 ): Promise<any> => {
+  const { recoveryCode, newPassword } = req.body;
+
+  // Log incoming request body for debugging
+
+  if (!recoveryCode || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: `Recovery code and new password are required.` });
+  }
+
   try {
-    const { email } = req.body;
+    const currentTime = new Date();
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findFirst({
+      where: {
+        recoveryCode: recoveryCode, // Exact match for the recovery code
+        recoveryCodeExpiresIn: {
+          gte: currentTime, // Check if the recovery code is still valid
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        recoveryCode: true,
+        recoveryCodeExpiresIn: true,
+        verified: true,
+      },
+    });
 
-    if (!user) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+    if (user) {
+      if (user.recoveryCode !== recoveryCode) {
+        console.warn(
+          `[resetPassword] LOGIC ALERT: Mismatch detected! DB recovery code "${user.recoveryCode}" vs Request recovery code "${recoveryCode}". This indicates an issue with the Prisma query or data consistency.`
+        );
+      }
+
+      if (
+        user.recoveryCodeExpiresIn &&
+        user.recoveryCodeExpiresIn < currentTime
+      ) {
+        console.warn(
+          `[resetPassword] LOGIC ALERT: DB recovery code expired (${user.recoveryCodeExpiresIn.toISOString()}) but user was found. This indicates an issue with the Prisma query's date comparison.`
+        );
+      }
+    } else {
+      console.log(
+        `[resetPassword] No user found with provided recovery code and valid expiry.`
+      );
     }
 
-    await sendResetPassword(user);
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: `Invalid or expired recovery code.` });
+    }
 
-    return res.status(200).json({
-      message: `Resetting password...`,
-      data: user,
+    // Hash the new password
+    const hashedPassword = await bcryptjs.hash(newPassword, 10);
+
+    // Update the user's password and clear recovery details
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        recoveryCode: null, // Clear the recovery code after use
+        recoveryCodeExpiresIn: null, // Clear the expiry after use
+        verified: true, // Optionally set to true if not already, as password reset implies verification
+        loginAttempts: 0,
+        loginLockedUntil: null,
+      },
+      select: {
+        // Select only necessary fields for logging, avoid sensitive data
+        id: true,
+        email: true,
+        verified: true,
+      },
     });
+
+    return res
+      .status(200)
+      .json({ message: `Password has been reset successfully.` });
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured while resetting password`,
-      data: error?.message,
-    });
+    console.error(
+      `[resetPassword] Internal server error during password reset:`,
+      error
+    );
+    return res
+      .status(500)
+      .json({ message: `Internal server error`, data: error.message });
   }
 };
 
