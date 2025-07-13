@@ -325,7 +325,7 @@ export const requestPasswordReset = async (
       },
     });
 
-    await sendVerificationToken(user);
+    await sendVerificationToken(updatedUser);
     return res.status(200).json({
       message: `If an account with that email exists, a password reset code has been sent.`,
     });

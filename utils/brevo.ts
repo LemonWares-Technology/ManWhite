@@ -4,8 +4,8 @@ env.config();
 
 const BREVO_API_KEY: string = process.env.BREVO_API_KEY!;
 const SENDER_EMAIL: string =
-  process.env.SENDER_EMAIL || "noreply@manwhitareos.com";
-const SENDER_NAME: string = process.env.SENDER_NAME || "Manwhit Areos";
+  process.env.SENDER_EMAIL || "noreply@manwhitaroes.com";
+const SENDER_NAME: string = process.env.SENDER_NAME || "ManwhitAroes";
 
 export const sendPaymentSuccessEmail = async (
   paymentData: any,
@@ -947,7 +947,7 @@ export const sendPaymentSuccessEmailWithRetry = async (
   }
 };
 
-// Sending verification code
+// Sending email verification code
 export const sendVerificationToken: any = async (user: {
   id: string;
   email: string;
@@ -960,11 +960,20 @@ export const sendVerificationToken: any = async (user: {
     throw new Error("Invalid user data for verification email.");
   }
 
+  // Log API key status for debugging
+  console.log(
+    `[sendVerificationToken] Brevo API Key Status: ${
+      BREVO_API_KEY
+        ? "Loaded (starts with " + BREVO_API_KEY.substring(0, 5) + "...)"
+        : "Not Set"
+    }`
+  );
+
   if (!BREVO_API_KEY) {
     console.warn(
       "[sendVerificationToken] Brevo API key not set. Skipping verification email send."
     );
-    return;
+    return; // Exit if API key is not available
   }
 
   const userName =
@@ -976,7 +985,7 @@ export const sendVerificationToken: any = async (user: {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Account Activation</title>
+        <title>Account Password Reset</title>
         <style>
           /* Basic Reset & Body Styles */
           body {
@@ -1111,27 +1120,26 @@ export const sendVerificationToken: any = async (user: {
           </div>
 
           <div class="content-area">
-            <h2 style="color: #333;">Reset Password</h2>
+            <h2 style="color: #333;">Password Reset Request</h2>
 
             <p>Dear ${userName},</p>
-            <p>You're just one step away from resetting your password and continuing your Manwhitaroes Journey. Use the verification code below to complete your password reset:</p>
+            <p>You've requested to reset your password for your Manwhit Areos account. Use the following verification code to complete the process:</p>
 
-               <div class="support-text">
-  <div style="font-size: 32px; color: #dc3545; font-weight: bold; text-align: center;     margin-top: 15px; margin-bottom: 15px;">
-    ${user.recoveryCode}
-      </div>
-      </div>
+            <div class="support-text">
+              <div style="font-size: 32px; color: #dc3545; font-weight: bold; text-align: center; margin-top: 15px; margin-bottom: 15px;">
+                ${user.recoveryCode}
+              </div>
+            </div>
 
             <p style="font-size: 14px; color: #666; margin-top: 30px;">
-              If you did not request this, please ignore this email.
+              This code is valid for a limited time. If you did not request a password reset, please ignore this email or contact support.
             </p>
           </div>
-
-     
 
           <div class="footer">
             <p>&copy; ${new Date().getFullYear()} Manwhit Areos. All rights reserved.</p>
             <p>This is an automated email. Please do not reply.</p>
+            <p>Need help? Contact us at <a href="mailto:Email Here too" style="color: #007bff; text-decoration: none;">Email here</a></p>
           </div>
         </div>
       </body>
@@ -1150,30 +1158,29 @@ export const sendVerificationToken: any = async (user: {
           name: userName,
         },
       ],
-      subject: "Reset", // Subject for the email
+      subject: "Manwhit Areos: Your Password Reset Code", // More descriptive subject
       htmlContent: htmlContent, // Provide the full HTML content
       textContent: `
-                Welcome to Manwhit Areos!
+          Dear ${userName},
 
-                Dear ${userName},
+          You've requested to reset your password for your Manwhit Areos account. Use the following verification code to complete the process:
 
-                To activate your account, please click the following link:
-                ${`verificationLink`}
+          ${user.recoveryCode}
 
-                If you did not request this, please ignore this email.
+          This code is valid for a limited time. If you did not request a password reset, please ignore this email.
 
-                Best regards,
-                The Manwhit Areos Team
+          Best regards,
+          The Manwhit Areos Team
 
-                Need help? Contact us at ${`contactemail`}
+          Need help? Contact us at Email here
 
-                © ${new Date().getFullYear()} Manwhit Areos. All rights reserved.
-            `, // Plain text fallback
-      tags: ["account-verification", "welcome"],
+          © ${new Date().getFullYear()} Manwhit Areos. All rights reserved.
+        `, // Plain text fallback, updated
+      tags: ["password-reset", "verification-code"], // Updated tags
     };
 
     console.log(
-      `[sendVerificationToken] Attempting to send verification email to ${user.email} using direct HTML content.`
+      `[sendVerificationToken] Attempting to send password reset email to ${user.email}.`
     );
 
     const response: any = await axios.post(
@@ -1189,29 +1196,30 @@ export const sendVerificationToken: any = async (user: {
     );
 
     console.log(
-      `[sendVerificationToken] Verification email sent successfully to ${user.email}. Brevo Message ID: ${response.data.messageId}`
+      `[sendVerificationToken] Password reset email sent successfully to ${user.email}. Brevo Message ID: ${response.data.messageId}`
     );
   } catch (error: any) {
+    // Enhanced error logging
     console.error(
-      `[sendVerificationToken] Failed to send verification email to ${user.email}:`,
-      error?.response?.data || error?.message
+      `[sendVerificationToken] Failed to send email to ${user.email}.`,
+      `Error details:`,
+      error.response
+        ? JSON.stringify(error.response.data, null, 2)
+        : error.message
     );
 
     if (error?.response?.status === 401) {
       throw new Error(
-        "Brevo API authentication failed for verification email. Please check your API key."
+        "Brevo API authentication failed. Please check your BREVO_API_KEY."
       );
     } else if (error?.response?.status === 400) {
-      throw new Error(
-        `Brevo API error for verification email: ${
-          error?.response?.data?.message || "Invalid request"
-        }`
-      );
+      // Brevo often provides helpful messages for 400 errors
+      const brevoErrorMessage =
+        error.response.data?.message || "Invalid request parameters.";
+      throw new Error(`Brevo API error: ${brevoErrorMessage}`);
     } else {
       throw new Error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Failed to send verification email"
+        error.message || "An unexpected error occurred while sending email."
       );
     }
   }
