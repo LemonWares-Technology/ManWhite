@@ -6,6 +6,7 @@ import {
   createNewPassword,
   createPassword,
   createTraveler,
+  deleteUserById,
   getAllAccounts,
   getAllGuestUsers,
   getAllTravelers,
@@ -34,6 +35,8 @@ router.route("/login").post(loginAccount);
 // Authenticating if the password inputed matches the email account's details
 router.route("/:email/check-password").post(checkPassword); //Tested and working perfectly
 
+router.route("/user/:userId").delete(deleteUserById);
+
 // Requesting reset the password
 router.route("/request-reset-password").post(requestPasswordReset);
 
@@ -57,7 +60,7 @@ router.route("/traveler").post(createTraveler);
 //getting all travelers details
 router.route("/travelers").get(getAllTravelers);
 
-router.route("/traveler/:id/amadeus", ).get(getTravelerForAmadeusBooking);
+router.route("/traveler/:id/amadeus").get(getTravelerForAmadeusBooking);
 
 router.route("/travelers/amadeus").get(getTravelersForAmadeusBooking);
 

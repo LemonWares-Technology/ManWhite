@@ -97,6 +97,34 @@ export const createPassword: any = async (req: Request, res: Response) => {
   }
 };
 
+export async function deleteUserById(
+  req: Request,
+  res: Response
+): Promise<Response | any> {
+  const { userId } = req.params;
+
+  try {
+    // Check if target user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!existingUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Delete user by ID directly
+    await prisma.user.delete({ where: { id: userId } });
+
+    return res.status(200).json({
+      message: "User deleted successfully",
+      userId,
+    });
+  } catch (error) {
+    console.error("User deletion error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 export const loginAccount = async (
   req: Request,
   res: Response
