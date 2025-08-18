@@ -31,11 +31,14 @@ exports.createExclusion = createExclusion;
 exports.readExclusion = readExclusion;
 exports.updateExclusion = updateExclusion;
 exports.deleteExclusion = deleteExclusion;
+exports.sendEmailBookingProcess = sendEmailBookingProcess;
+exports.getUserRole = getUserRole;
 const client_1 = require("@prisma/client");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const crypto_1 = __importDefault(require("crypto"));
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const emailServices_1 = require("../config/emailServices");
+const brevo_1 = require("@getbrevo/brevo");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const ADMIN_SECRET = process.env.JWT || "code";
@@ -773,7 +776,9 @@ const addExistingAddonsToFlightOffer = (req, res) => __awaiter(void 0, void 0, v
             where: { id: { in: addonIds } },
         });
         if (existingAddons.length !== addonIds.length) {
-            return res.status(400).json({ message: "One or more addonIds are invalid" });
+            return res
+                .status(400)
+                .json({ message: "One or more addonIds are invalid" });
         }
         // Update addons to link to flight offer
         const updateResult = yield prisma.flightAddon.updateMany({
@@ -815,12 +820,12 @@ const removeAddonsFromFlightOffer = (req, res) => __awaiter(void 0, void 0, void
         const existingAddons = yield prisma.flightAddon.findMany({
             where: {
                 id: { in: addonIds },
-                flightOfferId: flightOfferId
+                flightOfferId: flightOfferId,
             },
         });
         if (existingAddons.length !== addonIds.length) {
             return res.status(400).json({
-                message: "One or more addonIds are not linked to this flight offer"
+                message: "One or more addonIds are not linked to this flight offer",
             });
         }
         // Remove association by setting flightOfferId to null
@@ -841,3 +846,63 @@ const removeAddonsFromFlightOffer = (req, res) => __awaiter(void 0, void 0, void
     }
 });
 exports.removeAddonsFromFlightOffer = removeAddonsFromFlightOffer;
+function sendEmailBookingProcess(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { adminEmail, customerName, subject, customerEmail, text } = req.body;
+            // Instantiate the API client
+            const apiInstance = new brevo_1.TransactionalEmailsApi();
+            // Set the API key using the provided method
+            apiInstance.setApiKey(brevo_1.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+            // Create the email payload
+            const sendSmtpEmail = new brevo_1.SendSmtpEmail();
+            sendSmtpEmail.sender = {
+                name: "Manwhit Aroes",
+                email: adminEmail || "mails@manwhit.com",
+            };
+            sendSmtpEmail.to = [{ email: customerEmail, name: customerName }];
+            sendSmtpEmail.subject = subject;
+            sendSmtpEmail.htmlContent = `<html><body><p>${text}</p></body></html>`;
+            // Send the transactional email
+            const response = yield apiInstance.sendTransacEmail(sendSmtpEmail);
+            return res
+                .status(200)
+                .json({ message: "Email sent successfully", data: response });
+        }
+        catch (error) {
+            console.error("Error:", error);
+            return res.status(500).json({ message: "Internal server error" });
+        }
+    });
+}
+function getUserRole(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { email } = req.body;
+            if (!email) {
+                return res.status(400).json({
+                    message: `Missing required parameter: id`,
+                });
+            }
+            const account = yield prisma.user.findUnique({
+                where: { email: email },
+                select: { role: true },
+            });
+            if (!account) {
+                return res.status(404).json({
+                    message: `Account does not exist`,
+                });
+            }
+            return res.status(200).json({
+                message: `Success`,
+                data: account,
+            });
+        }
+        catch (error) {
+            console.error(`Error:`, error);
+            return res.status(500).json({
+                message: `Internal server error`,
+            });
+        }
+    });
+}

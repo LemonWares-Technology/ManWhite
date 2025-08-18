@@ -24,7 +24,9 @@ const getAmadeusToken = () => __awaiter(void 0, void 0, void 0, function* () {
             grant_type: "client_credentials",
             client_id: api_key,
             client_secret: api_secret,
-        }), { headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+        }), {
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        });
         return response.data.access_token;
     }
     catch (error) {

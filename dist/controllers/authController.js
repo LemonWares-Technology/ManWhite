@@ -23,16 +23,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTravelerDetails = exports.getTravelerById = exports.getAllTravelers = exports.getTravelerForAmadeusBooking = exports.getTravelersForAmadeusBooking = exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.createAccount = void 0;
+exports.updateTravelerDetails = exports.getTravelerById = exports.getAllTravelers = exports.getTravelerForAmadeusBooking = exports.getTravelersForAmadeusBooking = exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.requestPasswordReset = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.createAccount = void 0;
+exports.deleteUserById = deleteUserById;
 exports.createGuestUser = createGuestUser;
 exports.getAllGuestUsers = getAllGuestUsers;
 exports.getGuestUserById = getGuestUserById;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const client_1 = require("@prisma/client");
-const emailServices_1 = require("../config/emailServices");
+const crypto_1 = __importDefault(require("crypto"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const date_fns_1 = require("date-fns");
 const amadeusHelper_1 = require("../utils/amadeusHelper");
+const brevo_1 = require("../utils/brevo");
 const prisma = new client_1.PrismaClient();
 const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const generateAuthenticationCode = () => {
@@ -58,7 +60,8 @@ const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             },
         });
         // await sendVerification(newUser);
-        const { password: _ } = newUser, hidePassword = __rest(newUser, ["password"]);
+        yield (0, brevo_1.sendVerificationEmail)(newUser);
+        const { password } = newUser, hidePassword = __rest(newUser, ["password"]);
         return res.status(201).json({
             message: `Account created successfully`,
             data: hidePassword,
@@ -105,6 +108,30 @@ const createPassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.createPassword = createPassword;
+function deleteUserById(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { userId } = req.params;
+        try {
+            // Check if target user exists
+            const existingUser = yield prisma.user.findUnique({
+                where: { id: userId },
+            });
+            if (!existingUser) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            // Delete user by ID directly
+            yield prisma.user.delete({ where: { id: userId } });
+            return res.status(200).json({
+                message: "User deleted successfully",
+                userId,
+            });
+        }
+        catch (error) {
+            console.error("User deletion error:", error);
+            return res.status(500).json({ error: "Internal server error" });
+        }
+    });
+}
 const loginAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.body;
@@ -242,26 +269,132 @@ const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.checkPassword = checkPassword;
-const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const requestPasswordReset = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: `Email is required.` });
+    }
     try {
-        const { email } = req.body;
-        const user = yield prisma.user.findUnique({ where: { email } });
+        const user = yield prisma.user.findUnique({
+            where: { email },
+            select: {
+                // Select only necessary fields for initial check and update
+                id: true,
+                email: true,
+                recoveryCode: true, // Include these to see their current state before update
+                recoveryCodeExpiresIn: true,
+            },
+        });
         if (!user) {
-            return res.status(404).json({
-                message: `Account does not exist`,
+            console.log(`[requestPasswordReset] User with email ${email} not found. Sending generic success message.`);
+            return res.status(200).json({
+                message: `If an account with that email exists, a password reset code has been sent.`,
             });
         }
-        yield (0, emailServices_1.sendResetPassword)(user);
+        const recoveryCodeNumber = crypto_1.default.randomInt(10000, 90000);
+        const recoveryCode = recoveryCodeNumber.toString();
+        const recoveryCodeExpiresIn = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+        // Perform the update and capture the result
+        const updatedUser = yield prisma.user.update({
+            where: { id: user.id },
+            data: {
+                recoveryCode,
+                recoveryCodeExpiresIn,
+                loginAttempts: 0,
+                loginLockedUntil: null,
+            },
+            select: {
+                // Select fields you want to see after the update
+                id: true,
+                email: true,
+                recoveryCode: true,
+                recoveryCodeExpiresIn: true,
+            },
+        });
+        yield (0, brevo_1.sendVerificationToken)(updatedUser);
         return res.status(200).json({
-            message: `Resetting password...`,
-            data: user,
+            message: `If an account with that email exists, a password reset code has been sent.`,
         });
     }
     catch (error) {
         return res.status(500).json({
-            message: `Error occured while resetting password`,
+            message: `Internal server error`,
             data: error === null || error === void 0 ? void 0 : error.message,
         });
+    }
+});
+exports.requestPasswordReset = requestPasswordReset;
+const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { recoveryCode, newPassword } = req.body;
+    // Log incoming request body for debugging
+    if (!recoveryCode || !newPassword) {
+        return res
+            .status(400)
+            .json({ message: `Recovery code and new password are required.` });
+    }
+    try {
+        const currentTime = new Date();
+        const user = yield prisma.user.findFirst({
+            where: {
+                recoveryCode: recoveryCode, // Exact match for the recovery code
+                recoveryCodeExpiresIn: {
+                    gte: currentTime, // Check if the recovery code is still valid
+                },
+            },
+            select: {
+                id: true,
+                email: true,
+                recoveryCode: true,
+                recoveryCodeExpiresIn: true,
+                verified: true,
+            },
+        });
+        if (user) {
+            if (user.recoveryCode !== recoveryCode) {
+                console.warn(`[resetPassword] LOGIC ALERT: Mismatch detected! DB recovery code "${user.recoveryCode}" vs Request recovery code "${recoveryCode}". This indicates an issue with the Prisma query or data consistency.`);
+            }
+            if (user.recoveryCodeExpiresIn &&
+                user.recoveryCodeExpiresIn < currentTime) {
+                console.warn(`[resetPassword] LOGIC ALERT: DB recovery code expired (${user.recoveryCodeExpiresIn.toISOString()}) but user was found. This indicates an issue with the Prisma query's date comparison.`);
+            }
+        }
+        else {
+            console.log(`[resetPassword] No user found with provided recovery code and valid expiry.`);
+        }
+        if (!user) {
+            return res
+                .status(400)
+                .json({ message: `Invalid or expired recovery code.` });
+        }
+        // Hash the new password
+        const hashedPassword = yield bcryptjs_1.default.hash(newPassword, 10);
+        // Update the user's password and clear recovery details
+        const updatedUser = yield prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                recoveryCode: null, // Clear the recovery code after use
+                recoveryCodeExpiresIn: null, // Clear the expiry after use
+                verified: true, // Optionally set to true if not already, as password reset implies verification
+                loginAttempts: 0,
+                loginLockedUntil: null,
+            },
+            select: {
+                // Select only necessary fields for logging, avoid sensitive data
+                id: true,
+                email: true,
+                verified: true,
+            },
+        });
+        return res
+            .status(200)
+            .json({ message: `Password has been reset successfully.` });
+    }
+    catch (error) {
+        console.error(`[resetPassword] Internal server error during password reset:`, error);
+        return res
+            .status(500)
+            .json({ message: `Internal server error`, data: error.message });
     }
 });
 exports.resetPassword = resetPassword;
@@ -503,7 +636,9 @@ const getTravelersForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, vo
     try {
         const { flightOfferId } = req.query;
         if (!flightOfferId || typeof flightOfferId !== "string") {
-            return res.status(400).json({ message: "flightOfferId query parameter is required" });
+            return res
+                .status(400)
+                .json({ message: "flightOfferId query parameter is required" });
         }
         const travelers = yield prisma.traveler.findMany({
             where: { flightOfferId },
@@ -537,8 +672,7 @@ const getTravelerForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, voi
         if (!traveler) {
             return res.status(404).json({ message: "Traveler not found" });
         }
-        const amadeusTraveler = (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id);
-        ; // ID can be "1" or traveler.id as string
+        const amadeusTraveler = (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id); // ID can be "1" or traveler.id as string
         console.log("Raw traveler from DB:", traveler);
         console.log("Mapped Amadeus traveler:", amadeusTraveler);
         return res.status(200).json({
@@ -631,18 +765,24 @@ const updateTravelerDetails = (req, res) => __awaiter(void 0, void 0, void 0, fu
                 flightOfferId: flightOfferId || existingTraveler.flightOfferId,
                 firstName: firstName || existingTraveler.firstName,
                 lastName: lastName || existingTraveler.lastName,
-                dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : existingTraveler.dateOfBirth,
+                dateOfBirth: dateOfBirth
+                    ? new Date(dateOfBirth)
+                    : existingTraveler.dateOfBirth,
                 gender: gender || existingTraveler.gender,
                 email: email || existingTraveler.email,
                 phone: phone || existingTraveler.phone,
                 countryCode: countryCode || existingTraveler.countryCode,
                 birthPlace: birthPlace || existingTraveler.birthPlace,
                 passportNumber: passportNumber || existingTraveler.passportNumber,
-                passportExpiry: passportExpiry ? new Date(passportExpiry) : existingTraveler.passportExpiry,
+                passportExpiry: passportExpiry
+                    ? new Date(passportExpiry)
+                    : existingTraveler.passportExpiry,
                 issuanceCountry: issuanceCountry || existingTraveler.issuanceCountry,
                 validityCountry: validityCountry || existingTraveler.validityCountry,
                 nationality: nationality || existingTraveler.nationality,
-                issuanceDate: issuanceDate ? new Date(issuanceDate) : existingTraveler.issuanceDate,
+                issuanceDate: issuanceDate
+                    ? new Date(issuanceDate)
+                    : existingTraveler.issuanceDate,
                 issuanceLocation: issuanceLocation || existingTraveler.issuanceLocation,
             },
         });
@@ -663,7 +803,7 @@ exports.updateTravelerDetails = updateTravelerDetails;
 // POST /api/guest-user
 function createGuestUser(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        const { email, firstName, lastName, phone, address, postalCode, city, country } = req.body;
+        const { email, firstName, lastName, phone, address, postalCode, city, country, } = req.body;
         if (!email || !firstName || !lastName) {
             return res.status(400).json({ error: "Missing required guest fields" });
         }
@@ -672,7 +812,16 @@ function createGuestUser(req, res) {
             let guest = yield prisma.guestUser.findUnique({ where: { email } });
             if (!guest) {
                 guest = yield prisma.guestUser.create({
-                    data: { email, firstName, lastName, phone, address, postalCode, city, country }
+                    data: {
+                        email,
+                        firstName,
+                        lastName,
+                        phone,
+                        address,
+                        postalCode,
+                        city,
+                        country,
+                    },
                 });
             }
             return res.status(201).json({ guestUserId: guest.id, guest });

@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const paymentController_1 = require("../controllers/paymentController");
 const router = express_1.default.Router();
-router.route("/initialize").post(paymentController_1.initializePayment);
-router.route("/payment/verify").get(paymentController_1.verifyFlutterwavePayment);
+router.route("/initialize").post(paymentController_1.initializePayment); // Working
+router.route("/verify").post(paymentController_1.verifyFlutterwavePaymentWithEmail); // Working
+router.route("/stripe/initialize").post(paymentController_1.initializeStripePayment);
+router.route("/stripe/verify").get(paymentController_1.verifyStripePayment);
 exports.default = router;

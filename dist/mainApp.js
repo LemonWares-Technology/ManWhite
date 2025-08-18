@@ -17,6 +17,8 @@ const hotelRoute_1 = __importDefault(require("./routes/hotelRoute"));
 const paymentRoutes_1 = __importDefault(require("./routes/paymentRoutes"));
 const adminRoutes_1 = __importDefault(require("./routes/adminRoutes"));
 const marginRoutes_1 = __importDefault(require("./routes/marginRoutes"));
+const toursRoutes_1 = __importDefault(require("./routes/toursRoutes"));
+const CarRoutes_1 = __importDefault(require("./routes/CarRoutes"));
 const passport_1 = __importDefault(require("passport"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
@@ -29,6 +31,9 @@ const mainApp = (app) => {
     }));
     app.get("/", (req, res) => {
         res.send(`<a href="#" target="_blank">Successfully gotten</a>`);
+    });
+    app.get("/health", (req, res) => {
+        res.send(`<a href="#" target="_blank">Health</a>`);
     });
     app.use((0, express_session_1.default)({
         secret: process.env.JWT,
@@ -46,6 +51,8 @@ const mainApp = (app) => {
     app.use("/payment", paymentRoutes_1.default);
     app.use("/admin", adminRoutes_1.default);
     app.use("/margin", marginRoutes_1.default);
+    app.use("/tours", toursRoutes_1.default);
+    app.use("/cars", CarRoutes_1.default);
     app.get("/verify/:userId", (req, res) => {
         const userAgent = req.headers["user-agent"] || "";
         const { userId } = req.params;
@@ -55,7 +62,7 @@ const mainApp = (app) => {
             res.redirect(`manwhitaroes://auth/completeprofile/${userId}`);
         }
         else {
-            res.redirect(`https://manwhitareos.web.app/auth/${userId}`);
+            res.redirect(`https://manwhit.lemonwares.com/auth/${userId}`);
         }
     });
 };

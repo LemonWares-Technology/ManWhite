@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import getAmadeusToken from "../utils/getToken";
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
-import { v4 as uuid } from "uuid";
 import {
   extractAmadeusReference,
   extractCurrency,
@@ -28,7 +27,6 @@ export async function hotelAutocomplete(
         .json({ error: "keyword query parameter is required" });
     }
 
-    // Validate keyword length (Amadeus typically requires at least 3 characters)
     if (keyword.length < 3) {
       return res
         .status(400)

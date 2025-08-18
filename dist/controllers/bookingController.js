@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bookUserFlight = exports.bookFlight = exports.emptyUserFlightCart = exports.removeFlightFromCart = exports.getUserCart = exports.addFlightToCart = exports.verifyFlightPrice = void 0;
+exports.deleteBooking = deleteBooking;
 const client_1 = require("@prisma/client");
 const axios_1 = __importDefault(require("axios"));
 const getToken_1 = __importDefault(require("../utils/getToken"));
@@ -793,3 +794,32 @@ const bookUserFlight = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.bookUserFlight = bookUserFlight;
+function deleteBooking(req, res) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const { bookingId } = req.params;
+            if (!bookingId) {
+                return res.status(400).json({
+                    message: `Missing required parameters: bookingId`,
+                });
+            }
+            const bookings = yield prisma.booking.findUnique({
+                where: { id: bookingId },
+            });
+            if (!bookings) {
+                return res.status(404).json({
+                    message: `Booking does not exist`,
+                });
+            }
+            return res.status(200).json({
+                message: `Booking deleted successfully`,
+            });
+        }
+        catch (error) {
+            console.error(`Error: `, error);
+            return res.status(500).json({
+                message: `Internal server error`,
+            });
+        }
+    });
+}
