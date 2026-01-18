@@ -1,6 +1,8 @@
 import { prisma } from "../lib/prisma";
 import { Request, Response } from "express";
+import axios from "axios";
 import getAmadeusToken from "../utils/getToken";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 
 const baseURL: string = `https://test.api.amadeus.com`;
 
@@ -84,9 +86,7 @@ export async function searchToursByCity(
     const { cityName, radiusKM = 5 } = req.query;
 
     if (!cityName || typeof cityName !== "string") {
-      return res
-        .status(400)
-        .json({ error: "cityName query parameter is required" });
+      return sendError(res, "cityName query parameter is required", 400);
     }
 
     // 1. Get Amadeus OAuth token
@@ -107,7 +107,7 @@ export async function searchToursByCity(
 
     const cities = cityResponse.data?.data || [];
     if (cities.length === 0) {
-      return res.status(404).json({ message: "No cities found" });
+      return sendError(res, "No cities found", 404);
     }
 
     // 3. Use the first city’s coordinates
@@ -117,7 +117,7 @@ export async function searchToursByCity(
     const latitude = city.geoCode?.latitude;
 
     if (longitude === undefined || latitude === undefined) {
-      return res.status(500).json({ error: "City coordinates not found" });
+      return sendError(res, "City coordinates not found", 500);
     }
 
     // 4. Fetch tours/activities by radius
@@ -147,20 +147,10 @@ export async function searchToursByCity(
         tour.pictures.length > 0
     );
 
-    return res.status(200).json({
-      message: `Found ${filteredActivities.length} tours near ${city.name} matching '${cityName}'`,
-      results: filteredActivities,
-    });
+    return sendSuccess(res, `Found ${filteredActivities.length} tours near ${city.name} matching '${cityName}'`, filteredActivities);
   } catch (error: any) {
-    console.error(
-      "Error in searchToursByCity:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Failed to search tours",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+    console.error("Error in searchToursByCity:", error.response?.data || error.message);
+    return sendError(res, "Failed to search tours", 500, error);
   }
 }
 
@@ -172,9 +162,7 @@ export async function getTourDetailsById(
     const { activityId } = req.params;
 
     if (!activityId) {
-      return res.status(400).json({
-        message: `Missing required parameters: activityId`,
-      });
+      return sendError(res, "Missing required parameters: activityId", 400);
     }
 
     const token = await getAmadeusToken();
@@ -190,15 +178,9 @@ export async function getTourDetailsById(
 
     const activityResponse = activity.data?.data;
 
-    return res.status(200).json({
-      message: `Success`,
-      data: activityResponse,
-    });
+    return sendSuccess(res, "Success", activityResponse);
   } catch (error: any) {
     console.error(`Error:`, error);
-
-    return res.status(500).json({
-      message: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }

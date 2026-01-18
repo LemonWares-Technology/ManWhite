@@ -6,71 +6,169 @@ import jwt from "jsonwebtoken";
 import { addMinutes, isBefore } from "date-fns";
 import { mapTravelerToAmadeusFormat } from "../utils/amadeusHelper";
 import { sendVerificationEmail, sendVerificationToken } from "../utils/zeptomail";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 
 export const createAccount = async (
   req: Request,
   res: Response
 ): Promise<any> => {
-  const generateAuthenticationCode = (): string => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
   try {
     const { email } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { email: email },
+    if (!email) {
+      return sendError(res, "Email is required", 400);
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
     });
 
-    if (user) {
-      return res.status(400).json({
-        message: `Account with email address already exists`,
+    if (existingUser && existingUser.verified) {
+      return sendError(res, "Account with email address already exists", 400);
+    }
+
+    const verificationCode = crypto.randomInt(100000, 999999).toString();
+    const verificationCodeExpiresIn = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+
+    let user;
+    if (existingUser && !existingUser.verified) {
+      // Resend code for unverified account
+      user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          verificationCode,
+          verificationCodeExpiresIn,
+        },
+      });
+    } else {
+      // Create new account
+      user = await prisma.user.create({
+        data: {
+          email: email.toLowerCase(),
+          verificationCode,
+          verificationCodeExpiresIn,
+          verified: false,
+        },
       });
     }
 
-    const verificationCodeExpiresIn = new Date(
-      Date.now() + 10 * 60 * 1000
-    ).toISOString();
+    await sendVerificationEmail(user);
 
-    const newUser = await prisma.user.create({
+    const { password: _, ...hidePassword } = user;
+
+    return sendSuccess(res, `Verification code sent to ${email}`, hidePassword, 201);
+  } catch (error: any) {
+    console.error("Create account error:", error);
+    return sendError(res, "Error occurred during account creation", 500, error);
+  }
+};
+
+export const verifyAccount = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return sendError(res, "Email and code are required", 400);
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) {
+      return sendError(res, "Account not found", 404);
+    }
+
+    if (user.verified) {
+      return sendError(res, "Account already verified", 400);
+    }
+
+    if (user.verificationCode !== code) {
+      return sendError(res, "Invalid verification code", 400);
+    }
+
+    if (user.verificationCodeExpiresIn && isBefore(new Date(user.verificationCodeExpiresIn), new Date())) {
+      return sendError(res, "Verification code has expired", 400);
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
       data: {
-        email: email,
-        verificationCode: generateAuthenticationCode(),
-        verificationCodeExpiresIn,
         verified: true,
+        verificationCode: null,
+        verificationCodeExpiresIn: null,
       },
     });
 
-    // await sendVerification(newUser);
-    await sendVerificationEmail(newUser);
-
-    const { password, ...hidePassword } = newUser;
-
-    return res.status(201).json({
-      message: `Account created successfully`,
-      data: hidePassword,
-    });
+    return sendSuccess(res, "Account verified successfully", { userId: user.id });
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured during account creation: ${error?.message}`,
-      data: error,
+    console.error("Verify account error:", error);
+    return sendError(res, "Error during verification", 500, error);
+  }
+};
+
+// Helper: Generate Access and Refresh Tokens
+const generateTokens = (user: any) => {
+  const accessToken = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT as string,
+    { expiresIn: "4h" }
+  );
+  
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    (process.env.JWT_REFRESH_SECRET || process.env.JWT) as string,
+    { expiresIn: "7d" }
+  );
+  
+  return { accessToken, refreshToken };
+};
+
+// Helper: Set JWT in HttpOnly cookies
+const setTokenCookies = (res: Response, accessToken: string, refreshToken?: string) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: 4 * 60 * 60 * 1000, // 4 hours
+  });
+
+  if (refreshToken) {
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
 };
+
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
 export const createPassword: any = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { firstName, lastName, password } = req.body;
 
+    if (!password || !passwordRegex.test(password)) {
+      return sendError(res, "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.", 400);
+    }
+
     const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
+    }
+
+    if (!user.verified) {
+      return sendError(res, "Please verify your email before creating a password", 403);
     }
 
     const hashedPassword = await bcryptjs.hash(password, 10);
+
+    const { accessToken, refreshToken } = generateTokens(user);
 
     const newUser = await prisma.user.update({
       where: { id },
@@ -78,20 +176,19 @@ export const createPassword: any = async (req: Request, res: Response) => {
         firstName,
         lastName,
         password: hashedPassword,
+        refreshToken,
+        lastLoginAt: new Date(),
+        lastActiveAt: new Date(),
       },
     });
 
-    const { password: _, ...hidePassword } = newUser;
+    const { password: _, refreshToken: __, ...hideSensitive } = newUser;
 
-    return res.status(200).json({
-      message: `Password created successfully`,
-      data: hidePassword,
-    });
+    setTokenCookies(res, accessToken, refreshToken);
+
+    return sendSuccess(res, "Profile and password created successfully", { ...hideSensitive, token: accessToken });
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured while creating password`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while creating password", 500, error);
   }
 };
 
@@ -107,19 +204,16 @@ export async function deleteUserById(
       where: { id: userId },
     });
     if (!existingUser) {
-      return res.status(404).json({ error: "User not found" });
+      return sendError(res, "User not found", 404);
     }
 
     // Delete user by ID directly
     await prisma.user.delete({ where: { id: userId } });
 
-    return res.status(200).json({
-      message: "User deleted successfully",
-      userId,
-    });
-  } catch (error) {
+    return sendSuccess(res, "User deleted successfully", { userId });
+  } catch (error: any) {
     console.error("User deletion error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -135,72 +229,17 @@ export const loginAccount = async (
     });
 
     if (!user) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
     }
 
     // await sendLoginEmail(user)
 
-    return res.status(200).json({
-      message: `Almost there...`,
-      data: user,
-    });
+    return sendSuccess(res, "Almost there...", user);
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured during login`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred during login", 500, error);
   }
 };
 
-// export const checkPassword = async (
-//   req: Request,
-//   res: Response
-// ): Promise<any> => {
-//   try {
-//     const { email } = req.params;
-//     const { password } = req.body;
-
-//     const user = await prisma.user.findUnique({ where: { email } });
-
-//     if (!user) {
-//       return res.status(404).json({
-//         message: `Account does not exist`,
-//       });
-//     }
-
-//     if (user) {
-//       const check = await bcryptjs.compare(password, user?.password || "");
-
-//       if (check) {
-//         // Generate JWT token
-//         const token = jwt.sign(
-//           { id: user.id, email: user.email },
-//           process.env.JWT as string,
-//           { expiresIn: "24h" }
-//         );
-
-//         return res.status(200).json({
-//           message: `Logged in successfully`,
-//           data: {
-//             ...user,
-//             token,
-//           },
-//         });
-//       } else {
-//         return res.status(400).json({
-//           message: `Incorrect password`,
-//         });
-//       }
-//     }
-//   } catch (error: any) {
-//     return res.status(500).json({
-//       message: `Error occured validating password`,
-//       data: error?.message,
-//     });
-//   }
-// };
 
 export const checkPassword = async (
   req: Request,
@@ -213,9 +252,7 @@ export const checkPassword = async (
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
     }
 
     const MAX_ATTEMPTS = 5;
@@ -226,9 +263,7 @@ export const checkPassword = async (
       const minutesLeft = Math.ceil(
         (user.loginLockedUntil.getTime() - Date.now()) / 60000
       );
-      return res.status(403).json({
-        message: `Account is locked. Try again in ${minutesLeft} minute(s).`,
-      });
+      return sendError(res, `Account is locked. Try again in ${minutesLeft} minute(s).`, 403);
     }
 
     const isPasswordCorrect = await bcryptjs.compare(
@@ -237,28 +272,26 @@ export const checkPassword = async (
     );
 
     if (isPasswordCorrect) {
-      // Reset loginAttempts and lock time on success
+      // Generate tokens
+      const { accessToken, refreshToken } = generateTokens(user);
+
+      // Reset loginAttempts and update login metadata
       await prisma.user.update({
         where: { email },
         data: {
           loginAttempts: 0,
           loginLockedUntil: null,
+          refreshToken,
+          lastLoginAt: new Date(),
+          lastActiveAt: new Date(),
         },
       });
 
-      const token = jwt.sign(
-        { id: user.id, email: user.email },
-        process.env.JWT as string,
-        { expiresIn: "24h" }
-      );
+      setTokenCookies(res, accessToken, refreshToken);
 
-      return res.status(200).json({
-        message: `Logged in successfully`,
-        data: {
-          ...user,
-          token,
-        },
-      });
+      const { password: _, refreshToken: __, ...hideSensitive } = user;
+
+      return sendSuccess(res, "Logged in successfully", { ...hideSensitive, token: accessToken });
     } else {
       const updatedUser = await prisma.user.update({
         where: { email },
@@ -279,21 +312,14 @@ export const checkPassword = async (
           },
         });
 
-        return res.status(403).json({
-          message: `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`,
-        });
+        return sendError(res, `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`, 403);
       }
 
       const remaining = MAX_ATTEMPTS - updatedUser.loginAttempts;
-      return res.status(400).json({
-        message: `Incorrect password. ${remaining} attempt(s) remaining.`,
-      });
+      return sendError(res, `Incorrect password. ${remaining} attempt(s) remaining.`, 400);
     }
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occurred validating password`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred validating password", 500, error);
   }
 };
 
@@ -304,7 +330,7 @@ export const requestPasswordReset = async (
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ message: `Email is required.` });
+    return sendError(res, "Email is required.", 400);
   }
 
   try {
@@ -324,13 +350,10 @@ export const requestPasswordReset = async (
         `[requestPasswordReset] User with email ${email} not found. Sending generic success message.`
       );
 
-      return res.status(200).json({
-        message: `If an account with that email exists, a password reset code has been sent.`,
-      });
+      return sendSuccess(res, "If an account with that email exists, a password reset code has been sent.");
     }
 
-    const recoveryCodeNumber = crypto.randomInt(10000, 90000);
-    const recoveryCode = recoveryCodeNumber.toString();
+    const recoveryCode = crypto.randomInt(100000, 999999).toString();
     const recoveryCodeExpiresIn = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
     // Perform the update and capture the result
@@ -343,23 +366,19 @@ export const requestPasswordReset = async (
         loginLockedUntil: null,
       },
       select: {
-        // Select fields you want to see after the update
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         recoveryCode: true,
         recoveryCodeExpiresIn: true,
       },
     });
 
     await sendVerificationToken(updatedUser);
-    return res.status(200).json({
-      message: `If an account with that email exists, a password reset code has been sent.`,
-    });
+    return sendSuccess(res, "If an account with that email exists, a password reset code has been sent.");
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Internal server error`,
-      data: error?.message,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 };
 
@@ -372,9 +391,7 @@ export const resetPassword = async (
   // Log incoming request body for debugging
 
   if (!recoveryCode || !newPassword) {
-    return res
-      .status(400)
-      .json({ message: `Recovery code and new password are required.` });
+    return sendError(res, "Recovery code and new password are required.", 400);
   }
 
   try {
@@ -418,9 +435,7 @@ export const resetPassword = async (
     }
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ message: `Invalid or expired recovery code.` });
+      return sendError(res, "Invalid or expired recovery code.", 400);
     }
 
     // Hash the new password
@@ -445,17 +460,10 @@ export const resetPassword = async (
       },
     });
 
-    return res
-      .status(200)
-      .json({ message: `Password has been reset successfully.` });
+    return sendSuccess(res, "Password has been reset successfully.");
   } catch (error: any) {
-    console.error(
-      `[resetPassword] Internal server error during password reset:`,
-      error
-    );
-    return res
-      .status(500)
-      .json({ message: `Internal server error`, data: error.message });
+    console.error(`[resetPassword] Internal server error during password reset:`, error);
+    return sendError(res, "Internal server error", 500, error);
   }
 };
 
@@ -470,9 +478,7 @@ export const createNewPassword = async (
     const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
-      return res.status(404).json({
-        message: `Account not found`,
-      });
+      return sendError(res, "Account not found", 404);
     }
 
     const hashedPassword = await bcryptjs.hash(password, 10);
@@ -486,15 +492,9 @@ export const createNewPassword = async (
 
     const { password: _, ...hidePassword } = newUser;
 
-    return res.status(200).json({
-      message: `Password updated successfully`,
-      data: hidePassword,
-    });
+    return sendSuccess(res, "Password updated successfully", hidePassword);
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured while creating new password`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while creating new password", 500, error);
   }
 };
 
@@ -522,19 +522,14 @@ export const getSingleUserAccount = async (
     });
 
     if (!user) {
-      return res.status(400).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
     }
 
     const { password: _, ...hidePassword } = user;
 
-    return res.status(200).json({
-      message: `Details gotten successfully`,
-      data: hidePassword,
-    });
+    return sendSuccess(res, "Details gotten successfully", hidePassword);
   } catch (error: any) {
-    throw new Error(error?.response?.data?.message);
+    return sendError(res, "Error occurred while getting user details", 500, error);
   }
 };
 
@@ -547,15 +542,9 @@ export const getAllAccounts = async (
       include: { cart: true, bookings: true },
     });
 
-    return res.status(200).json({
-      message: `${users?.length} Accounts(s) gotten successfully`,
-      data: users,
-    });
+    return sendSuccess(res, `${users?.length} Account(s) gotten successfully`, users);
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured while getting all accounts`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while getting all accounts", 500, error);
   }
 };
 
@@ -579,9 +568,7 @@ export const updateuserAccountDetails = async (
     const user = await prisma.user.findUnique({ where: { id } });
 
     if (!user) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
     }
 
     if (user) {
@@ -601,16 +588,10 @@ export const updateuserAccountDetails = async (
 
       const { password: _, ...hidePassword } = newUser;
 
-      return res.status(200).json({
-        message: `Account updated successfully`,
-        data: hidePassword,
-      });
+      return sendSuccess(res, "Account updated successfully", hidePassword);
     }
   } catch (error: any) {
-    return res.status(500).json({
-      message: `Error occured while updating account`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while updating account", 500, error);
   }
 };
 
@@ -682,6 +663,7 @@ export const updateuserAccountDetails = async (
 // };
 
 // Create traveler endpoint
+
 export const createTraveler = async (
   req: Request,
   res: Response
@@ -712,7 +694,7 @@ export const createTraveler = async (
         where: { id: flightOfferId },
       });
       if (!exists) {
-        return res.status(400).json({ message: "Invalid flightOfferId" });
+        return sendError(res, "Invalid flightOfferId", 400);
       }
     }
 
@@ -737,16 +719,10 @@ export const createTraveler = async (
       },
     });
 
-    return res.status(201).json({
-      message: "Traveler created successfully",
-      traveler: newTraveler,
-    });
+    return sendSuccess(res, "Traveler created successfully", newTraveler, 201);
   } catch (error: any) {
     console.error("Error creating traveler:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -759,9 +735,7 @@ export const getTravelersForAmadeusBooking = async (
     const { flightOfferId } = req.query;
 
     if (!flightOfferId || typeof flightOfferId !== "string") {
-      return res
-        .status(400)
-        .json({ message: "flightOfferId query parameter is required" });
+      return sendError(res, "flightOfferId query parameter is required", 400);
     }
 
     const travelers = await prisma.traveler.findMany({
@@ -773,16 +747,10 @@ export const getTravelersForAmadeusBooking = async (
       mapTravelerToAmadeusFormat(traveler, traveler.id || index + 1)
     );
 
-    return res.status(200).json({
-      message: "Travelers formatted for Amadeus booking retrieved successfully",
-      travelers: amadeusTravelers,
-    });
+    return sendSuccess(res, "Travelers formatted for Amadeus booking retrieved successfully", amadeusTravelers);
   } catch (error: any) {
     console.error("Error fetching travelers for Amadeus booking:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -795,7 +763,7 @@ export const getTravelerForAmadeusBooking = async (
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({ message: "Traveler ID is required" });
+      return sendError(res, "Traveler ID is required", 400);
     }
 
     const traveler = await prisma.traveler.findUnique({
@@ -803,23 +771,17 @@ export const getTravelerForAmadeusBooking = async (
     });
 
     if (!traveler) {
-      return res.status(404).json({ message: "Traveler not found" });
+      return sendError(res, "Traveler not found", 404);
     }
 
     const amadeusTraveler = mapTravelerToAmadeusFormat(traveler, traveler.id); // ID can be "1" or traveler.id as string
     console.log("Raw traveler from DB:", traveler);
     console.log("Mapped Amadeus traveler:", amadeusTraveler);
 
-    return res.status(200).json({
-      message: "Traveler formatted for Amadeus booking retrieved successfully",
-      traveler: amadeusTraveler,
-    });
+    return sendSuccess(res, "Traveler formatted for Amadeus booking retrieved successfully", amadeusTraveler);
   } catch (error: any) {
     console.error("Error fetching traveler for Amadeus booking:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -833,16 +795,10 @@ export const getAllTravelers = async (
       orderBy: { createdAt: "desc" },
     });
 
-    return res.status(200).json({
-      message: "Travelers retrieved successfully",
-      data: travelers,
-    });
+    return sendSuccess(res, "Travelers retrieved successfully", travelers);
   } catch (error: any) {
     console.error("Error fetching travelers:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -855,7 +811,7 @@ export const getTravelerById = async (
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({ message: "Traveler ID is required" });
+      return sendError(res, "Traveler ID is required", 400);
     }
 
     const traveler = await prisma.traveler.findUnique({
@@ -863,19 +819,13 @@ export const getTravelerById = async (
     });
 
     if (!traveler) {
-      return res.status(404).json({ message: "Traveler not found" });
+      return sendError(res, "Traveler not found", 404);
     }
 
-    return res.status(200).json({
-      message: "Traveler retrieved successfully",
-      data: traveler,
-    });
+    return sendSuccess(res, "Traveler retrieved successfully", traveler);
   } catch (error: any) {
     console.error("Error fetching traveler:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -905,7 +855,7 @@ export const updateTravelerDetails = async (
     } = req.body;
 
     if (!id) {
-      return res.status(400).json({ message: "Traveler ID is required" });
+      return sendError(res, "Traveler ID is required", 400);
     }
 
     // Verify traveler exists
@@ -914,7 +864,7 @@ export const updateTravelerDetails = async (
     });
 
     if (!existingTraveler) {
-      return res.status(404).json({ message: "Traveler not found" });
+      return sendError(res, "Traveler not found", 404);
     }
 
     // Validate flight offer exists if provided
@@ -923,7 +873,7 @@ export const updateTravelerDetails = async (
         where: { id: flightOfferId },
       });
       if (!exists) {
-        return res.status(400).json({ message: "Invalid flightOfferId" });
+        return sendError(res, "Invalid flightOfferId", 400);
       }
     }
 
@@ -955,16 +905,10 @@ export const updateTravelerDetails = async (
       },
     });
 
-    return res.status(200).json({
-      message: "Traveler updated successfully",
-      traveler: updatedTraveler,
-    });
+    return sendSuccess(res, "Traveler updated successfully", updatedTraveler);
   } catch (error: any) {
     console.error("Error updating traveler:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -985,7 +929,7 @@ export async function createGuestUser(
   } = req.body;
 
   if (!email || !firstName || !lastName) {
-    return res.status(400).json({ error: "Missing required guest fields" });
+    return sendError(res, "Missing required guest fields", 400);
   }
 
   try {
@@ -1007,10 +951,10 @@ export async function createGuestUser(
       });
     }
 
-    return res.status(201).json({ guestUserId: guest.id, guest });
+    return sendSuccess(res, "Guest user created/found successfully", guest, 201);
   } catch (error: any) {
     console.error("Error creating guest user:", error);
-    return res.status(500).json({ error: "Server error" });
+    return sendError(res, "Server error", 500, error);
   }
 }
 
@@ -1021,10 +965,10 @@ export async function getAllGuestUsers(
 ): Promise<Response | any> {
   try {
     const guests = await prisma.guestUser.findMany();
-    return res.status(200).json({ guests });
+    return sendSuccess(res, "Guest users fetched successfully", guests);
   } catch (error: any) {
     console.error("Error fetching guest users:", error);
-    return res.status(500).json({ error: "Server error" });
+    return sendError(res, "Server error", 500, error);
   }
 }
 
@@ -1038,11 +982,70 @@ export async function getGuestUserById(
   try {
     const guest = await prisma.guestUser.findUnique({ where: { id } });
     if (!guest) {
-      return res.status(404).json({ error: "Guest user not found" });
+      return sendError(res, "Guest user not found", 404);
     }
-    return res.status(200).json({ guest });
+    return sendSuccess(res, "Guest user fetched successfully", guest);
   } catch (error: any) {
     console.error("Error fetching guest user:", error);
-    return res.status(500).json({ error: "Server error" });
+    return sendError(res, "Server error", 500, error);
   }
 }
+
+export const logout: any = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (refreshToken) {
+      await prisma.user.updateMany({
+        where: { refreshToken },
+        data: { refreshToken: null },
+      });
+    }
+
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+
+    return sendSuccess(res, "Logged out successfully");
+  } catch (error: any) {
+    return sendError(res, "Logout failed", 500, error);
+  }
+};
+
+export const refreshTokens: any = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+      return sendError(res, "Refresh token missing", 401);
+    }
+
+    const decoded = jwt.verify(
+      refreshToken,
+      (process.env.JWT_REFRESH_SECRET || process.env.JWT) as string
+    ) as { id: string };
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+    });
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return sendError(res, "Invalid or rotated refresh token", 403);
+    }
+
+    const tokens = generateTokens(user);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken: tokens.refreshToken,
+        lastActiveAt: new Date(),
+      },
+    });
+
+    setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
+
+    return sendSuccess(res, "Tokens refreshed successfully", { token: tokens.accessToken });
+  } catch (error: any) {
+    console.error("Refresh token error:", error);
+    return sendError(res, "Expired or invalid refresh token", 403, error);
+  }
+};

@@ -20,11 +20,18 @@ import {
   resetPassword,
   updateTravelerDetails,
   updateuserAccountDetails,
+  verifyAccount,
+  logout,
+  refreshTokens,
 } from "../controllers/authController";
+import { authenticateToken, authenticateAdmin } from "../middleware/auth";
 
 const router = express.Router();
 // Creating an account
 router.route("/").post(createAccount);
+
+// Verify account code
+router.route("/verify-account").post(verifyAccount);
 
 // Updating the account's name , password after signup up
 router.route("/:id/create-password").patch(createPassword);
@@ -34,6 +41,9 @@ router.route("/login").post(loginAccount);
 
 // Authenticating if the password inputed matches the email account's details
 router.route("/:email/check-password").post(checkPassword); //Tested and working perfectly
+
+router.route("/logout").post(logout);
+router.route("/refresh-token").post(refreshTokens);
 
 router.route("/user/:userId").delete(deleteUserById);
 
@@ -46,14 +56,14 @@ router.route("/reset-password").post(resetPassword);
 // Creating new password
 router.route("/:id/complete").patch(createNewPassword);
 
-// Getting users's details
-router.route("/:id/get-details").get(getSingleUserAccount);
+// Getting users's details (User or Admin)
+router.route("/:id/get-details").get(authenticateToken, getSingleUserAccount);
 
-// Getting all account details
-router.route("/users").get(getAllAccounts);
+// Getting all account details (Admins only)
+router.route("/users").get(authenticateAdmin, getAllAccounts);
 
 //Updating user's details
-router.route("/:id/update-details").patch(updateuserAccountDetails);
+router.route("/:id/update-details").patch(authenticateToken, updateuserAccountDetails);
 
 //updating traveler details
 router.route("/traveler").post(createTraveler);

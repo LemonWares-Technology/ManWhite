@@ -1,5 +1,6 @@
 import { Application, json, Request, Response } from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import flightRoutes from "./routes/flightRoutes";
 import bookingRoutes from "./routes/bookingRoutes";
 import morgan from "morgan";
@@ -14,15 +15,17 @@ import marginRoutes from "./routes/marginRoutes";
 import tourRoutes from "./routes/toursRoutes";
 import carsRoutes from "./routes/CarRoutes";
 import passport from "passport";
+import { errorHandler } from "./middleware/errorMiddleware";
 import env from "dotenv";
 env.config();
 
 export const mainApp = (app: Application) => {
   app.use(json());
+  app.use(cookieParser());
   app.use(
     cors({
-      origin: "*",
-      methods: ["GET", "POST", "DELETE", "PATCH"],
+      origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      methods: ["GET", "POST", "DELETE", "PATCH", "PUT"],
       credentials: true,
     })
   );
@@ -68,4 +71,7 @@ export const mainApp = (app: Application) => {
       res.redirect(`https://manwhit.lemonwares.com/auth/${userId}`);
     }
   });
+
+  // Centralized Error Handling (Must be last)
+  app.use(errorHandler);
 };
