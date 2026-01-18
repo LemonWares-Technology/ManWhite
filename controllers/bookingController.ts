@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Request, Response } from "express";
 import axios from "axios";
 import getAmadeusToken from "../utils/getToken";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 import env from "dotenv";
 env.config();
 
@@ -15,7 +16,7 @@ export const verifyFlightPrice = async (
     const { priceFlightOffersBody } = req.body;
 
     if (!priceFlightOffersBody) {
-      return res.status(400).json({ message: "Missing flight offer data" });
+      return sendError(res, "Missing flight offer data", 400);
     }
 
     const token = await getAmadeusToken();
@@ -31,15 +32,9 @@ export const verifyFlightPrice = async (
       }
     );
 
-    return res.status(200).json({
-      message: `Flight price verified successfully`,
-      data: response,
-    });
+    return sendSuccess(res, "Flight price verified successfully", response);
   } catch (error: any) {
-    return res.status(500).json({
-      message: "Error verifying flight price",
-      data: error?.message,
-    });
+    return sendError(res, "Error verifying flight price", 500, error);
   }
 };
 
@@ -52,9 +47,7 @@ export const addFlightToCart = async (
     const { flightData } = req.body;
 
     if (!flightData) {
-      return res.status(400).json({
-        message: `Missing required parameter `,
-      });
+      return sendError(res, "Missing required parameter", 400);
     }
 
     const user = await prisma.user.findUnique({
@@ -62,9 +55,7 @@ export const addFlightToCart = async (
     });
 
     if (!user) {
-      return res.status(404).json({
-        message: `User not found or does not exist`,
-      });
+      return sendError(res, "User not found or does not exist", 404);
     }
 
     const cartItem = await prisma.flightCart.create({
@@ -74,16 +65,10 @@ export const addFlightToCart = async (
       },
     });
 
-    return res.status(200).json({
-      message: `Flight added to cart`,
-      data: cartItem,
-    });
+    return sendSuccess(res, "Flight added to cart", cartItem);
   } catch (error: any) {
     console.log(`AMADEUS API: `, error?.response?.data);
-    return res.status(500).json({
-      message: `Error occured while adding flight to cart`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while adding flight to cart", 500, error);
   }
 };
 
@@ -100,9 +85,7 @@ export const getUserCart = async (
     });
 
     if (!user) {
-      return res.status(404).json({
-        message: "User not found or does not exist",
-      });
+      return sendError(res, "User not found or does not exist", 404);
     }
 
     // Fetch all cart items for the user
@@ -110,16 +93,10 @@ export const getUserCart = async (
       where: { userId },
     });
 
-    return res.status(200).json({
-      message: "User cart retrieved successfully",
-      data: cartItems,
-    });
+    return sendSuccess(res, "User cart retrieved successfully", cartItems);
   } catch (error: any) {
     console.error("Error fetching user cart:", error.message);
-    return res.status(500).json({
-      message: "Error occurred while fetching user cart",
-      error: error.message,
-    });
+    return sendError(res, "Error occurred while fetching user cart", 500, error);
   }
 };
 
@@ -134,24 +111,17 @@ export const removeFlightFromCart = async (
     });
 
     if (!cartItem) {
-      return res.status(404).json({
-        message: `Item not found in cart`,
-      });
+      return sendError(res, "Item not found in cart", 404);
     }
 
     await prisma.flightCart.delete({
       where: { id: cartId },
     });
 
-    return res.status(200).json({
-      message: `Flight removed from cart`,
-    });
+    return sendSuccess(res, "Flight removed from cart");
   } catch (error: any) {
     console.log(`AMADEUS API: `, error?.response?.data);
-    return res.status(500).json({
-      message: `Error occured while removing flight from cart`,
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while removing flight from cart", 500, error);
   }
 };
 
@@ -164,7 +134,7 @@ export const emptyUserFlightCart = async (
   try {
     // Check if userId is provided
     if (!userId) {
-      return res.status(400).json({ message: "User ID is required" });
+      return sendError(res, "User ID is required", 400);
     }
 
     // Delete all cart items for this user
@@ -172,15 +142,10 @@ export const emptyUserFlightCart = async (
       where: { userId },
     });
 
-    return res.status(200).json({
-      message: "All flights removed from cart",
-    });
+    return sendSuccess(res, "All flights removed from cart");
   } catch (error: any) {
     console.log(`AMADEUS API: `, error?.response?.data);
-    return res.status(500).json({
-      message: "Error occurred while emptying cart",
-      data: error?.message,
-    });
+    return sendError(res, "Error occurred while emptying cart", 500, error);
   }
 };
 
@@ -223,9 +188,7 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
 
     // Early check for transaction ID
     if (!transactionId) {
-      return res
-        .status(400)
-        .json({ message: "Missing Flutterwave transaction ID" });
+      return sendError(res, "Missing Flutterwave transaction ID", 400);
     }
 
     // Check if ANY booking exists for this transaction ID
@@ -240,16 +203,11 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
 
     if (existingBooking) {
       console.log(`Found existing booking for transaction ${transactionId}`);
-      return res.status(200).json({
-        message: "Booking already exists for this transaction",
-        bookings: [existingBooking],
-      });
+      return sendSuccess(res, "Booking already exists for this transaction", [existingBooking]);
     }
 
     if (!travelers || !Array.isArray(travelers) || travelers.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Travelers data missing or invalid" });
+      return sendError(res, "Travelers data missing or invalid", 400);
     }
 
     // 1. Verify payment with Flutterwave
@@ -257,7 +215,7 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
     const verifyUrl = `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`;
 
     if (!FLUTTERWAVE_SECRET_KEY || !verifyUrl) {
-      return res.status(500).json({ message: "Server misconfiguration" });
+      return sendError(res, "Server misconfiguration", 500);
     }
 
     const flutterwaveRes = await axios.get(verifyUrl, {
@@ -273,7 +231,7 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
       flutterwaveData.status !== "success" ||
       flutterwaveData.data.status !== "successful"
     ) {
-      return res.status(402).json({ message: "Payment not successful" });
+      return sendError(res, "Payment not successful", 402);
     }
 
     // 2. Handle guest user creation if guestInfo is provided
@@ -366,17 +324,13 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
     if (guestInfo) {
       // Guest booking - direct checkout with single flight
       if (!flightOffer) {
-        return res
-          .status(400)
-          .json({ message: "Flight offer is required for guest booking" });
+        return sendError(res, "Flight offer is required for guest booking", 400);
       }
       flightOffers = [flightOffer];
     } else {
       // Registered user - checkout from cart
       if (!req.user?.id) {
-        return res
-          .status(401)
-          .json({ message: "Unauthorized: User ID missing" });
+        return sendError(res, "Unauthorized: User ID missing", 401);
       }
 
       const cartItems = await prisma.flightCart.findMany({
@@ -384,7 +338,7 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
       });
 
       if (cartItems.length === 0) {
-        return res.status(400).json({ message: "Cart is empty" });
+        return sendError(res, "Cart is empty", 400);
       }
 
       flightOffers = cartItems.map((item) => item.flightData);
@@ -618,15 +572,10 @@ export const bookFlight = async (req: any, res: any): Promise<any> => {
       await prisma.flightCart.deleteMany({ where: { userId: req.user.id } });
     }
 
-    return res.status(200).json({
-      message: "Flight(s) booked successfully",
-      bookings,
-    });
+    return sendSuccess(res, "Flight(s) booked successfully", bookings);
   } catch (error: any) {
     console.error("Booking API Error:", error.response?.data || error.message);
-    return res
-      .status(500)
-      .json({ message: "Error booking flight", error: error.message });
+    return sendError(res, "Error booking flight", 500, error);
   }
 };
 
@@ -636,19 +585,15 @@ export const bookUserFlight = async (req: any, res: any): Promise<any> => {
     const { travelers } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ message: "Unauthorized: User ID missing" });
+      return sendError(res, "Unauthorized: User ID missing", 401);
     }
 
     if (!transactionId) {
-      return res
-        .status(400)
-        .json({ message: "Missing Flutterwave transaction ID" });
+      return sendError(res, "Missing Flutterwave transaction ID", 400);
     }
 
     if (!travelers || !Array.isArray(travelers) || travelers.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Travelers data missing or invalid" });
+      return sendError(res, "Travelers data missing or invalid", 400);
     }
 
     // 1. Verify payment with Flutterwave
@@ -668,7 +613,7 @@ export const bookUserFlight = async (req: any, res: any): Promise<any> => {
       flutterwaveData.status !== "success" ||
       flutterwaveData.data.status !== "successful"
     ) {
-      return res.status(402).json({ message: "Payment not successful" });
+      return sendError(res, "Payment not successful", 402);
     }
 
     // 2. Fetch user's cart items
@@ -677,7 +622,7 @@ export const bookUserFlight = async (req: any, res: any): Promise<any> => {
     });
 
     if (cartItems.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
+      return sendError(res, "Cart is empty", 400);
     }
 
     // 3. Get Amadeus token once
@@ -901,15 +846,10 @@ export const bookUserFlight = async (req: any, res: any): Promise<any> => {
     // 4. Clear cart
     await prisma.flightCart.deleteMany({ where: { userId } });
 
-    return res.status(200).json({
-      message: "Flight(s) booked successfully",
-      bookings,
-    });
+    return sendSuccess(res, "Flight(s) booked successfully", bookings);
   } catch (error: any) {
     console.error("Booking API Error:", error.response?.data || error.message);
-    return res
-      .status(500)
-      .json({ message: "Error booking flight", error: error.message });
+    return sendError(res, "Error booking flight", 500, error);
   }
 };
 
@@ -918,9 +858,7 @@ export async function deleteBooking(req: Request, res: Response): Promise<any> {
     const { bookingId } = req.params;
 
     if (!bookingId) {
-      return res.status(400).json({
-        message: `Missing required parameters: bookingId`,
-      });
+      return sendError(res, "Missing required parameters: bookingId", 400);
     }
 
     const bookings = await prisma.booking.findUnique({
@@ -928,19 +866,12 @@ export async function deleteBooking(req: Request, res: Response): Promise<any> {
     });
 
     if (!bookings) {
-      return res.status(404).json({
-        message: `Booking does not exist`,
-      });
+      return sendError(res, "Booking does not exist", 404);
     }
 
-    return res.status(200).json({
-      message: `Booking deleted successfully`,
-    });
+    return sendSuccess(res, "Booking deleted successfully");
   } catch (error: any) {
     console.error(`Error: `, error);
-
-    return res.status(500).json({
-      message: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }

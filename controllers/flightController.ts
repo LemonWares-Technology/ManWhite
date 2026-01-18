@@ -10,6 +10,7 @@ import {
 import { getCachedIataCode, getCachedLocationDetails } from "../utils/helper";
 import { sendBookingConfirmationEmails as sendBookingConfirmationEmail } from "../utils/zeptomail";
 import { getIataCodeDetails } from "../utils/iata";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 
 const baseURL: string = "https://test.api.amadeus.com";
 
@@ -205,7 +206,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
         }),
       }));
 
-      return res.json(suggestions);
+      return sendSuccess(res, "Suggestions retrieved successfully", suggestions);
     }
 
     // NEW: If only getting airport details for specific IATA codes
@@ -237,23 +238,17 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
         }
       }
 
-      return res.json({
-        message: "Airport details retrieved successfully",
-        data: airportDetails,
-      });
+      return sendSuccess(res, "Airport details retrieved successfully", airportDetails);
     }
 
     // For flight search, validate required fields
     if (!origin || !destination || !adults || !departureDate) {
-      return res.status(400).json({
-        error:
-          "Missing required field(s): origin, destination, adults, departureDate",
-      });
+      return sendError(res, "Missing required field(s): origin, destination, adults, departureDate", 400);
     }
 
     const adultsNum = Number(adults);
     if (isNaN(adultsNum) || adultsNum < 1) {
-      return res.status(400).json({ error: "Invalid 'adults' parameter" });
+      return sendError(res, "Invalid 'adults' parameter", 400);
     }
 
     // Get IATA codes for origin and destination
@@ -264,9 +259,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
     );
 
     if (!originIata || !destinationIata) {
-      return res
-        .status(400)
-        .json({ error: "Could not find IATA code for origin or destination" });
+      return sendError(res, "Could not find IATA code for origin or destination", 400);
     }
 
     // NEW: Get detailed airport information for origin and destination
@@ -376,10 +369,10 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       };
     }
 
-    return res.status(200).json(responseData);
+    return sendSuccess(res, "Flight offers retrieved successfully", responseData);
   } catch (error: any) {
     console.error("Error occurred:", error.response?.data || error.message);
-    return res.status(500).json({ error: "Failed to fetch flight offers" });
+    return sendError(res, "Failed to fetch flight offers", 500, error);
   }
 }
 
@@ -392,9 +385,7 @@ export async function searchFlightPrice(
     const { flightOffer } = req.body;
 
     if (!flightOffer) {
-      return res
-        .status(400)
-        .json({ error: "Missing flight offer in request body" });
+      return sendError(res, "Missing flight offer in request body", 400);
     }
 
     const token = await getAmadeusToken();
@@ -423,7 +414,7 @@ export async function searchFlightPrice(
     });
 
     if (!marginSetting) {
-      return res.status(500).json({ error: "Margin setting not configured" });
+      return sendError(res, "Margin setting not configured", 500);
     }
 
     const marginPercentage = marginSetting.amount;
@@ -471,7 +462,7 @@ export async function searchFlightPrice(
       }
     }
 
-    return res.status(200).json({
+    return sendSuccess(res, "Flight pricing retrieved successfully", {
       ...response.data,
       data: {
         ...response.data.data,
@@ -479,14 +470,8 @@ export async function searchFlightPrice(
       },
     });
   } catch (error: any) {
-    console.error(
-      "Flight pricing error:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Failed to fetch flight pricing",
-      details: error.response?.data || error.message,
-    });
+    console.error("Flight pricing error:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch flight pricing", 500, error);
   }
 }
 
@@ -498,7 +483,7 @@ export const saveSelectedFlightOffer = async (
     const { offerData } = req.body;
 
     if (!offerData) {
-      return res.status(400).json({ message: "Missing offer data" });
+      return sendError(res, "Missing offer data", 400);
     }
 
     const savedOffer = await prisma.flightOffer.create({
@@ -507,15 +492,10 @@ export const saveSelectedFlightOffer = async (
       },
     });
 
-    return res.status(201).json({
-      message: "Flight offer saved successfully",
-      flightOfferId: savedOffer.id,
-    });
+    return sendSuccess(res, "Flight offer saved successfully", { flightOfferId: savedOffer.id }, 201);
   } catch (error: any) {
     console.error("Error saving flight offer:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: error.message });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -528,16 +508,10 @@ export const getFlightOffers = async (
       orderBy: { createdAt: "desc" },
     });
 
-    return res.status(200).json({
-      message: "Flight offers retrieved successfully",
-      data: flightOffers,
-    });
+    return sendSuccess(res, "Flight offers retrieved successfully", flightOffers);
   } catch (error: any) {
     console.error("Error fetching flight offers:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -549,7 +523,7 @@ export const getFlightOfferById = async (
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json({ message: "Flight offer ID is required" });
+      return sendError(res, "Flight offer ID is required", 400);
     }
 
     const flightOffer = await prisma.flightOffer.findUnique({
@@ -561,19 +535,13 @@ export const getFlightOfferById = async (
     });
 
     if (!flightOffer) {
-      return res.status(404).json({ message: "Flight offer not found" });
+      return sendError(res, "Flight offer not found", 404);
     }
 
-    return res.status(200).json({
-      message: "Flight offer retrieved successfully",
-      data: flightOffer,
-    });
+    return sendSuccess(res, "Flight offer retrieved successfully", flightOffer);
   } catch (error: any) {
     console.error("Error fetching flight offer:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -584,7 +552,7 @@ export async function retrieveFlightDetails(
   try {
     const rawReferenceId = req.params.referenceId;
     if (!rawReferenceId) {
-      return res.status(400).json({ error: "Reference parameter is required" });
+      return sendError(res, "Reference parameter is required", 400);
     }
 
     // Decode incoming param
@@ -607,13 +575,13 @@ export async function retrieveFlightDetails(
       }
     );
 
-    return res.status(200).json(response.data);
+    return sendSuccess(res, "Flight details retrieved successfully", response.data);
   } catch (error: any) {
     console.error(
       "Error retrieving flight details:",
       error.response?.data || error.message
     );
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -622,10 +590,10 @@ export async function deleteFlightBooking(
   res: Response
 ): Promise<any> {
   try {
-    const rawReferenceId = req.params.referenceId;
+    const rawReferenceId = req.params.referenceId; // Kept this line as it was already there
 
     if (!rawReferenceId) {
-      return res.status(400).json({ error: "Reference ID is required" });
+      return sendError(res, "Reference ID is required", 400);
     }
 
     const decodedReferenceId = decodeURIComponent(rawReferenceId);
@@ -637,9 +605,7 @@ export async function deleteFlightBooking(
     });
 
     if (!booking) {
-      return res
-        .status(404)
-        .json({ error: "Booking not found in local database" });
+      return sendError(res, "Booking not found in local database", 404);
     }
 
     const token = await getAmadeusToken();
@@ -655,9 +621,7 @@ export async function deleteFlightBooking(
       where: { referenceId: encodedReferenceId },
     });
 
-    return res.status(200).json({
-      message: "Booking successfully cancelled and deleted",
-    });
+    return sendSuccess(res, "Booking successfully cancelled and deleted");
   } catch (error: any) {
     console.error(
       "Error deleting booking:",
@@ -665,12 +629,10 @@ export async function deleteFlightBooking(
     );
 
     if (error.response?.status === 404) {
-      return res
-        .status(404)
-        .json({ error: "Booking not found in Amadeus or already deleted" });
+      return sendError(res, "Booking not found in Amadeus or already deleted", 404);
     }
 
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -679,10 +641,10 @@ export async function getSeatMapsByFlightId(
   res: Response
 ): Promise<any> {
   try {
-    const { referenceId } = req.params;
+    const { referenceId } = req.params; // Kept this line as it was already there
 
     if (!referenceId) {
-      return res.status(400).json({ error: "Flight order ID is required" });
+      return sendError(res, "Flight order ID is required", 400);
     }
 
     const token = await getAmadeusToken();
@@ -697,16 +659,14 @@ export async function getSeatMapsByFlightId(
       },
     });
 
-    return res.status(200).json(response.data);
+    return sendSuccess(res, "Seat maps fetched successfully", response.data);
   } catch (error: any) {
     console.error(
       "Error occurred while fetching seat maps:",
       error.response?.data || error.message
     );
 
-    return res.status(500).json({
-      error: "Internal server error",
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -718,7 +678,7 @@ export async function getOneFlightDetails(
     const { flightId } = req.params;
 
     if (!flightId) {
-      return res.status(400).json({ error: "Reference parameter is required" });
+      return sendError(res, "Reference parameter is required", 400);
     }
 
     const response = await prisma.booking.findUnique({
@@ -726,18 +686,13 @@ export async function getOneFlightDetails(
     });
 
     if (!response) {
-      return res.status(404).json({
-        message: "This Flight cannot be found",
-      });
+      return sendError(res, "This Flight cannot be found", 404);
     }
 
-    return res.status(200).json(response);
+    return sendSuccess(res, "Flight details retrieved successfully", response);
   } catch (error: any) {
-    console.error(
-      "Error retrieving flight details:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("Error retrieving flight details:", error.response?.data || error.message);
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -750,7 +705,7 @@ export async function updateFlightStatus(
     const { status } = req.body;
 
     if (!flightId) {
-      return res.status(400).json({ error: "Reference parameter is required" });
+      return sendError(res, "Reference parameter is required", 400);
     }
 
     const flightInfo = await prisma.booking.update({
@@ -760,13 +715,10 @@ export async function updateFlightStatus(
       },
     });
 
-    return res.status(201).json(flightInfo);
+    return sendSuccess(res, "Flight status updated successfully", flightInfo);
   } catch (error: any) {
-    console.error(
-      "Error retrieving flight details:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("Error retrieving flight details:", error.response?.data || error.message);
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -1186,20 +1138,16 @@ export async function bookFlightWithOptionalAddonsx(
     });
 
     if (!flightOffer || !travelers) {
-      return res.status(400).json({
-        error: "Missing required fields: flightOffer or travelers",
-      });
+      return sendError(res, "Missing required fields: flightOffer or travelers", 400);
     }
 
     // Validate userId
     if (!userId) {
-      return res
-        .status(400)
-        .json({ error: "userId is required for this booking endpoint." });
+      return sendError(res, "userId is required for this booking endpoint.", 400);
     }
     const userExists = await prisma.user.findUnique({ where: { id: userId } });
     if (!userExists) {
-      return res.status(400).json({ error: "Invalid userId: user not found" });
+      return sendError(res, "Invalid userId: user not found", 400);
     }
 
     // Transform travelers to Amadeus format if needed
@@ -1211,9 +1159,7 @@ export async function bookFlightWithOptionalAddonsx(
 
     // Add null checks before mapping
     if (!amadeusTravelers[0]?.name?.firstName) {
-      return res.status(400).json({
-        error: "Missing firstName in traveler data",
-      });
+      return sendError(res, "Missing firstName in traveler data", 400);
     }
 
     console.log(`amadeusTravelers`, amadeusTravelers);
@@ -1260,16 +1206,14 @@ export async function bookFlightWithOptionalAddonsx(
       orderBy: { createdAt: "desc" },
     });
     if (!marginSetting) {
-      return res.status(500).json({ error: "Margin setting not configured" });
+      return sendError(res, "Margin setting not configured", 500);
     }
     const marginPercentage = marginSetting.amount;
 
     // Extract base price from Amadeus response
     const flightOffers = amadeusBooking?.data?.flightOffers || [];
     if (flightOffers.length === 0) {
-      return res
-        .status(500)
-        .json({ error: "No flight offers found in Amadeus response" });
+      return sendError(res, "No flight offers found in Amadeus response", 500);
     }
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
 
@@ -1288,10 +1232,7 @@ export async function bookFlightWithOptionalAddonsx(
         where: { id: { in: addonIds } },
       });
       if (addons.length !== addonIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: "One or more addonIds are invalid",
-        });
+        return sendError(res, "One or more addonIds are invalid", 400);
       }
       addonTotalNGN = addons.reduce((sum, addon) => {
         const priceInUsd = addon.price;
@@ -1364,22 +1305,16 @@ export async function bookFlightWithOptionalAddonsx(
       include: { FlightAddon: true },
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Flight successfully booked with addons",
+    return sendSuccess(res, "Flight successfully booked with addons", {
       booking: bookingWithAddons,
       amadeus: amadeusBooking,
       originalTotalAmount: +originalTotalAmount.toFixed(2),
       addonTotal: +addonTotalNGN.toFixed(2),
       totalAmount: +totalAmountNGN.toFixed(2),
-    });
+    }, 201);
   } catch (error: any) {
     console.error("Booking Error:", error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Flight booking failed",
-      error: error.response?.data || error.message,
-    });
+    return sendError(res, "Flight booking failed", 500, error);
   }
 }
 
@@ -1400,24 +1335,18 @@ export async function bookFlightAsGuest(
     });
 
     if (!flightOffer || !travelers) {
-      return res.status(400).json({
-        error: "Missing required fields: flightOffer or travelers",
-      });
+      return sendError(res, "Missing required fields: flightOffer or travelers", 400);
     }
 
     // Validate guestUserId
     if (!guestUserId) {
-      return res
-        .status(400)
-        .json({ error: "guestUserId is required for guest booking." });
+      return sendError(res, "guestUserId is required for guest booking.", 400);
     }
     const guestExists = await prisma.guestUser.findUnique({
       where: { id: guestUserId },
     });
     if (!guestExists) {
-      return res
-        .status(400)
-        .json({ error: "Invalid guestUserId: guest user not found" });
+      return sendError(res, "Invalid guestUserId: guest user not found", 400);
     }
 
     // Transform travelers to Amadeus format if needed
@@ -1462,18 +1391,16 @@ export async function bookFlightAsGuest(
       orderBy: { createdAt: "desc" },
     });
     if (!marginSetting) {
-      return res.status(500).json({ error: "Margin setting not configured" });
+      return sendError(res, "Margin setting not configured", 500);
     }
     const marginPercentage = marginSetting.amount;
 
     // Extract base price from Amadeus response
-    const flightOffers = amadeusBooking?.data?.flightOffers || [];
-    if (flightOffers.length === 0) {
-      return res
-        .status(500)
-        .json({ error: "No flight offers found in Amadeus response" });
+    const flightOffersFromResp = amadeusBooking?.data?.flightOffers || [];
+    if (flightOffersFromResp.length === 0) {
+      return sendError(res, "No flight offers found in Amadeus response", 500);
     }
-    const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
+    const basePriceNGN = parseFloat(flightOffersFromResp[0].price?.grandTotal || "0");
 
     // Calculate margin and total
     const marginAdded = (marginPercentage / 100) * basePriceNGN;
@@ -1490,10 +1417,7 @@ export async function bookFlightAsGuest(
         where: { id: { in: addonIds } },
       });
       if (addons.length !== addonIds.length) {
-        return res.status(400).json({
-          success: false,
-          message: "One or more addonIds are invalid",
-        });
+        return sendError(res, "One or more addonIds are invalid", 400);
       }
       addonTotalNGN = addons.reduce((sum, addon) => {
         const priceInUsd = addon.price;
@@ -1560,22 +1484,16 @@ export async function bookFlightAsGuest(
       include: { FlightAddon: true },
     });
 
-    return res.status(201).json({
-      success: true,
-      message: "Flight successfully booked with addons",
+    return sendSuccess(res, "Flight successfully booked with addons", {
       booking: bookingWithAddons,
       amadeus: amadeusBooking,
       originalTotalAmount: +originalTotalAmount.toFixed(2),
       addonTotal: +addonTotalNGN.toFixed(2),
       totalAmount: +totalAmountNGN.toFixed(2),
-    });
+    }, 201);
   } catch (error: any) {
     console.error("Booking Error:", error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Flight booking failed",
-      error: error.response?.data || error.message,
-    });
+    return sendError(res, "Flight booking failed", 500, error);
   }
 }
 
@@ -1588,18 +1506,16 @@ export async function updateBookingStatus(
   const { status, verified } = req.body;
 
   if (!referenceId) {
-    return res.status(400).json({ error: "referenceId is required" });
+    return sendError(res, "referenceId is required", 400);
   }
   if (!status && typeof verified === "undefined") {
-    return res
-      .status(400)
-      .json({ error: "At least one of status or verified must be provided" });
+    return sendError(res, "At least one of status or verified must be provided", 400);
   }
 
   try {
     const booking = await prisma.booking.findUnique({ where: { referenceId } });
     if (!booking) {
-      return res.status(404).json({ error: "Booking not found" });
+      return sendError(res, "Booking not found", 404);
     }
 
     const updatedBooking = await prisma.booking.update({
@@ -1610,18 +1526,10 @@ export async function updateBookingStatus(
       },
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Booking status updated successfully",
-      booking: updatedBooking,
-    });
+    return sendSuccess(res, "Booking status updated successfully", updatedBooking);
   } catch (error: any) {
     console.error("Error updating booking status:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update booking status",
-      error: error.message,
-    });
+    return sendError(res, "Failed to update booking status", 500, error);
   }
 }
 
@@ -1654,7 +1562,7 @@ export async function getAirportDetails(
     const { iataCode } = req.query;
 
     if (!iataCode || typeof iataCode !== "string") {
-      return res.status(400).json({ error: "Missing or invalid IATA code" });
+      return sendError(res, "Missing or invalid IATA code", 400);
     }
 
     const token = await getAmadeusToken();
@@ -1662,10 +1570,10 @@ export async function getAirportDetails(
     const airportDetails = await getCachedLocationDetail(iataCode, token);
 
     if (!airportDetails) {
-      return res.status(404).json({ error: "Airport not found" });
+      return sendError(res, "Airport not found", 404);
     }
 
-    return res.status(200).json({
+    return sendSuccess(res, "Airport details fetched successfully", {
       iataCode: airportDetails.iataCode,
       name: airportDetails.name,
       detailedName: airportDetails.detailedName,
@@ -1683,14 +1591,8 @@ export async function getAirportDetails(
       selfLink: airportDetails.self?.href,
     });
   } catch (error: any) {
-    console.error(
-      "Airport details error:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Failed to fetch airport details",
-      details: error.response?.data || error.message,
-    });
+    console.error("Airport details error:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch airport details", 500, error);
   }
 }
 
@@ -1720,7 +1622,7 @@ export async function getAirlineDetailsEndpoint(
     const { iataCode } = req.query;
 
     if (!iataCode || typeof iataCode !== "string") {
-      return res.status(400).json({ error: "Missing or invalid IATA code" });
+      return sendError(res, "Missing or invalid IATA code", 400);
     }
 
     const token = await getAmadeusToken();
@@ -1728,10 +1630,10 @@ export async function getAirlineDetailsEndpoint(
     const airlineDetails = await getAirlineDetails(iataCode, token);
 
     if (!airlineDetails) {
-      return res.status(404).json({ error: "Airline not found" });
+      return sendError(res, "Airline not found", 404);
     }
 
-    return res.status(200).json({
+    return sendSuccess(res, "Airline details fetched successfully", {
       iataCode,
       type: airlineDetails?.type,
       icaoCode: airlineDetails?.icaoCode,
@@ -1739,14 +1641,8 @@ export async function getAirlineDetailsEndpoint(
       commonName: airlineDetails?.businessName,
     });
   } catch (error: any) {
-    console.error(
-      "Airline details error:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Failed to fetch airline details",
-      details: error.response?.data || error.message,
-    });
+    console.error("Airline details error:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch airline details", 500, error);
   }
 }
 
@@ -1815,10 +1711,7 @@ export async function getAirlinesByAirport(
       !adults ||
       isNaN(Number(adults))
     ) {
-      return res.status(400).json({
-        error:
-          "Missing or invalid parameters: iataCode, destinationCode, departureDate, adults are required",
-      });
+      return sendError(res, "Missing or invalid parameters: iataCode, destinationCode, departureDate, adults are required", 400);
     }
 
     const iataCodeUpper = iataCode.toUpperCase();
@@ -1862,8 +1755,8 @@ export async function getAirlinesByAirport(
     console.log(`airlineCodes`, airlineCodes);
 
     if (airlineCodes.length === 0) {
-      return res.status(200).json({
-        message: "No airlines found for the given airport",
+      return sendSuccess(res, "No airlines found for the given airport", {
+        airport: iataCodeUpper,
         airlines: [],
       });
     }
@@ -1873,7 +1766,7 @@ export async function getAirlinesByAirport(
     console.log(`airlinesDetails`, airlinesDetails);
 
     // Step 4: Return airline details
-    return res.status(200).json({
+    return sendSuccess(res, "Airline details fetched successfully", {
       airport: iataCodeUpper,
       airlines: airlinesDetails.map((airline) => ({
         iataCode: airline.iataCode,
@@ -1887,10 +1780,7 @@ export async function getAirlinesByAirport(
       "Error fetching airlines by airport:",
       error.response?.data || error.message
     );
-    return res.status(500).json({
-      error: "Failed to fetch airlines for the airport",
-      details: error.response?.data || error.message,
-    });
+    return sendError(res, "Failed to fetch airlines for the airport", 500, error);
   }
 }
 
@@ -1950,8 +1840,7 @@ export async function getAirlinesByMultipleLocations(
 
     const airlineCodes = Array.from(airlineCodesSet);
     if (airlineCodes.length === 0) {
-      return res.status(200).json({
-        message: "No airlines found for the provided airports",
+      return sendSuccess(res, "No airlines found for the provided airports", {
         airlines: [],
       });
     }
@@ -1969,7 +1858,7 @@ export async function getAirlinesByMultipleLocations(
 
     const airlines = airlinesResponse.data.data || [];
 
-    return res.status(200).json({
+    return sendSuccess(res, "Airline details retrieved successfully", {
       airports,
       airlines,
     });
@@ -1978,10 +1867,7 @@ export async function getAirlinesByMultipleLocations(
       "Error fetching airlines by multiple locations:",
       error.response?.data || error.message
     );
-    return res.status(500).json({
-      error: "Failed to fetch airlines for the provided locations",
-      details: error.response?.data || error.message,
-    });
+    return sendError(res, "Failed to fetch airlines for the provided locations", 500, error);
   }
 }
 
@@ -2144,7 +2030,7 @@ export async function getFlightOffersRandom(
     const cachedResponse = flightOfferCache.get(cacheKey);
 
     if (cachedResponse && Date.now() - cachedResponse.timestamp < CACHE_TTL) {
-      return res.status(200).json({ data: cachedResponse.data });
+      return sendSuccess(res, "Flight offers retrieved successfully (from cache)", cachedResponse.data);
     }
 
     const token = await getAmadeusToken();
@@ -2216,7 +2102,7 @@ export async function getFlightOffersRandom(
       timestamp: Date.now(),
     });
 
-    return res.status(200).json({ data: enrichedOffers });
+    return sendSuccess(res, "Flight offers retrieved successfully", enrichedOffers);
   } catch (error: any) {
     console.error(
       "Amadeus flight offers error:",
@@ -2226,10 +2112,10 @@ export async function getFlightOffersRandom(
     const cacheKey = JSON.stringify(req.query);
     const cachedResponse = flightOfferCache.get(cacheKey);
     if (cachedResponse) {
-      return res.status(200).json({ data: cachedResponse.data });
+      return sendSuccess(res, "Flight offers retrieved successfully (from cache)", cachedResponse.data);
     }
 
-    return res.status(500).json({ error: "Failed to fetch flight offers" });
+    return sendError(res, "Failed to fetch flight offers", 500, error);
   }
 }
 
@@ -2238,30 +2124,24 @@ export async function getFlightOffersRandom(
 export async function getFlightOfferDetails(
   req: Request,
   res: Response
-): Promise<void> {
+): Promise<Response | any> {
   try {
     const { flightOffer } = req.body;
 
     // Basic validation
     if (!flightOffer || typeof flightOffer !== "object") {
-      res.status(400).json({ error: "Flight offer object is required" });
-      return;
+      return sendError(res, "Flight offer object is required", 400);
     }
 
     // Verify required fields
     if (!flightOffer.id || !flightOffer.itineraries || !flightOffer.price) {
-      res.status(400).json({
-        error: "Invalid flight offer structure",
-        requiredFields: ["id", "itineraries", "price"],
-      });
-      return;
+      return sendError(res, "Invalid flight offer structure", 400, { requiredFields: ["id", "itineraries", "price"] });
     }
 
     // Get Amadeus token
     const token = await getAmadeusToken();
     if (!token) {
-      res.status(500).json({ error: "Failed to authenticate with Amadeus" });
-      return;
+      return sendError(res, "Failed to authenticate with Amadeus", 500);
     }
 
     // Prepare request body for Amadeus API
@@ -2286,7 +2166,7 @@ export async function getFlightOfferDetails(
     );
 
     // Return the priced flight offer
-    res.status(200).json(response.data.data);
+    return sendSuccess(res, "Flight offer details retrieved successfully", response.data.data);
   } catch (error: any) {
     console.error("Flight offer details error:", error.message);
 
@@ -2295,18 +2175,11 @@ export async function getFlightOfferDetails(
       const errors = error.response.data.errors
         .map((err: any) => `${err.code}: ${err.detail}`)
         .join("; ");
-      res.status(400).json({
-        error: "Amadeus API error",
-        details: errors,
-      });
-      return;
+      return sendError(res, "Amadeus API error", 400, { details: errors });
     }
 
     // Handle other errors
-    res.status(500).json({
-      error: "Failed to get flight details",
-      details: error.message,
-    });
+    return sendError(res, "Failed to get flight details", 500, error);
   }
 }
 
@@ -2536,17 +2409,13 @@ export async function bookFlightWithOptionalAddons(
       console.error("Validation failed: Missing flightOffer or travelers");
       console.error("flightOffer exists:", !!flightOffer);
       console.error("travelers exists:", !!travelers);
-      return res.status(400).json({
-        error: "Missing required fields: flightOffer or travelers",
-      });
+      return sendError(res, "Missing required fields: flightOffer or travelers", 400);
     }
     console.log("✓ flightOffer and travelers validation passed");
 
     if (!userId) {
       console.error("Validation failed: userId is missing");
-      return res
-        .status(400)
-        .json({ error: "userId is required for this booking endpoint." });
+      return sendError(res, "userId is required for this booking endpoint.", 400);
     }
     console.log("✓ userId validation passed:", userId);
 
@@ -2562,7 +2431,7 @@ export async function bookFlightWithOptionalAddons(
 
     if (!userExists) {
       console.error("User verification failed: User not found for ID:", userId);
-      return res.status(400).json({ error: "Invalid userId: user not found" });
+      return sendError(res, "Invalid userId: user not found", 400);
     }
     console.log("✓ User verification passed");
 
@@ -2604,9 +2473,7 @@ export async function bookFlightWithOptionalAddons(
         "First traveler data:",
         JSON.stringify(amadeusTravelers[0], null, 2)
       );
-      return res.status(400).json({
-        error: "Missing firstName in traveler data",
-      });
+      return sendError(res, "Missing firstName in traveler data", 400);
     }
     console.log("✓ First traveler validation passed");
 
@@ -2683,7 +2550,7 @@ export async function bookFlightWithOptionalAddons(
 
     if (!marginSetting) {
       console.error("Margin setting not found in database");
-      return res.status(500).json({ error: "Margin setting not configured" });
+      return sendError(res, "Margin setting not configured", 500);
     }
 
     const marginPercentage = marginSetting.amount;
@@ -2701,9 +2568,7 @@ export async function bookFlightWithOptionalAddons(
         "Amadeus booking data structure:",
         Object.keys(amadeusBooking?.data || {})
       );
-      return res
-        .status(500)
-        .json({ error: "No flight offers found in Amadeus response" });
+      return sendError(res, "No flight offers found in Amadeus response", 500);
     }
 
     const basePriceNGN = parseFloat(flightOffers[0].price?.grandTotal || "0");
@@ -2750,10 +2615,7 @@ export async function bookFlightWithOptionalAddons(
           "Found addon IDs:",
           addons.map((a) => a.id)
         );
-        return res.status(400).json({
-          success: false,
-          message: "One or more addonIds are invalid",
-        });
+        return sendError(res, "One or more addonIds are invalid", 400);
       }
 
       console.log("Processing addon prices...");
@@ -2902,27 +2764,25 @@ export async function bookFlightWithOptionalAddons(
       JSON.stringify(bookingWithAddons, null, 2)
     );
 
-    // Success response
+    // Clear cart after successful booking
+    if (userId) {
+      await prisma.flightCart.deleteMany({ where: { userId } });
+    }
+
     console.log("=== SUCCESS RESPONSE ===");
-    const successResponse = {
-      success: true,
-      message:
-        "Flight successfully booked with addons and confirmation emails sent",
+    const finalData = {
       booking: bookingWithAddons,
       amadeus: amadeusBooking,
       originalTotalAmount: +originalTotalAmount.toFixed(2),
       addonTotal: +addonTotalNGN.toFixed(2),
       totalAmount: +totalAmountNGN.toFixed(2),
-      referenceId: booking.id, // Add this for easier tracking
+      referenceId: booking.id, 
     };
 
-    console.log(
-      "Success response data:",
-      JSON.stringify(successResponse, null, 2)
-    );
+    console.log("Success response data:", JSON.stringify(finalData, null, 2));
     console.log("=== BOOKING FUNCTION COMPLETED SUCCESSFULLY ===");
 
-    return res.status(201).json(successResponse);
+    return sendSuccess(res, "Flight successfully booked with addons and confirmation emails sent", finalData, 201);
   } catch (error: any) {
     console.error("=== BOOKING ERROR OCCURRED ===");
     console.error("Error type:", typeof error);
@@ -2946,12 +2806,6 @@ export async function bookFlightWithOptionalAddons(
 
     console.error("=== END ERROR DETAILS ===");
 
-    return res.status(500).json({
-      success: false,
-      message: "Flight booking failed",
-      error: error.response?.data || error.message,
-      errorType: error.name,
-      timestamp: new Date().toISOString(),
-    });
+    return sendError(res, "Flight booking failed", 500, error);
   }
 }

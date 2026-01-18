@@ -8,6 +8,7 @@ import {
   extractCarTotalAmount,
   generateCarBookingReference,
 } from "../utils/helper";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 
 const baseURL: string = "https://test.api.amadeus.com";
 
@@ -16,12 +17,10 @@ export async function searchCars(req: Request, res: Response): Promise<any> {
     const { data } = req.body;
 
     // Get user context from request (adjust based on your auth implementation)
-    const currentUserId = req.User?.id || null; // Assuming you have user in req from auth middleware
+    const currentUserId = (req as any).user?.id || null;
 
     if (!data) {
-      return res.status(400).json({
-        error: "Missing booking data",
-      });
+      return sendError(res, "Missing booking data", 400);
     }
 
     // Validate required fields for car booking
@@ -30,25 +29,18 @@ export async function searchCars(req: Request, res: Response): Promise<any> {
       !data.endAddressLine ||
       !data.startDateTime
     ) {
-      return res.status(400).json({
-        error:
-          "Required fields missing: startLocationCode, endAddressLine, and startDateTime are required",
-      });
+      return sendError(res, "Required fields missing: startLocationCode, endAddressLine, and startDateTime are required", 400);
     }
 
     if (!data.passengers || data.passengers < 1) {
-      return res.status(400).json({
-        error: "At least one passenger is required",
-      });
+      return sendError(res, "At least one passenger is required", 400);
     }
 
     if (
       !data.passengerCharacteristics ||
       data.passengerCharacteristics.length === 0
     ) {
-      return res.status(400).json({
-        error: "Passenger characteristics are required",
-      });
+      return sendError(res, "Passenger characteristics are required", 400);
     }
 
     // Get Amadeus access token
@@ -243,11 +235,10 @@ export async function searchCars(req: Request, res: Response): Promise<any> {
     });
 
     // Return success response
-    return res.status(201).json({
-      success: true,
-      message: userId
+    return sendSuccess(res, userId
         ? "Car transfer booking completed successfully and cart cleared"
-        : "Car transfer booking completed successfully",
+        : "Car transfer booking completed successfully", 
+    {
       booking: {
         id: result?.id,
         referenceId: result?.referenceId,
@@ -261,8 +252,8 @@ export async function searchCars(req: Request, res: Response): Promise<any> {
         travelers: result?.travelers,
       },
       amadeusResponse: amadeusResponse.data,
-      cartCleared: userId ? true : false, // Indicate if cart was cleared
-    });
+      cartCleared: userId ? true : false,
+    }, 201);
   } catch (error: any) {
     console.error(
       "Error booking car transfer:",
@@ -271,29 +262,16 @@ export async function searchCars(req: Request, res: Response): Promise<any> {
 
     // If it's an Amadeus API error, return specific error
     if (error.response?.data) {
-      return res.status(error.response.status || 500).json({
-        error: "Amadeus API Error",
-        details: error.response.data,
-        message:
-          error.response.data.error_description ||
-          error.response.data.message ||
-          "Car transfer booking failed",
-      });
+      return sendError(res, error.response.data.error_description || error.response.data.message || "Car transfer booking failed", error.response.status || 502, error.response.data);
     }
 
     // If it's a database error
     if (error.code === "P2002") {
-      return res.status(409).json({
-        error: "Booking reference already exists",
-        message: "Please try again",
-      });
+      return sendError(res, "Booking reference already exists", 409);
     }
 
     // Generic error
-    return res.status(500).json({
-      error: "Internal server error",
-      message: error.message || "An unexpected error occurred",
-    });
+    return sendError(res, "Internal server error", 500, error);
   } finally {
     // Clean up Prisma connection
     await prisma.$disconnect();
@@ -309,12 +287,10 @@ export async function bookCarTransfer(
     const { data } = req.body;
 
     // Get user context from request (adjust based on your auth implementation)
-    const currentUserId = req.User?.id || null;
+    const currentUserId = (req as any).user?.id || null;
 
     if (!data) {
-      return res.status(400).json({
-        error: "Missing booking data",
-      });
+      return sendError(res, "Missing booking data", 400);
     }
 
     // Validate required fields for car booking
@@ -324,25 +300,18 @@ export async function bookCarTransfer(
       !data.endAddressLine ||
       !data.startDateTime
     ) {
-      return res.status(400).json({
-        error:
-          "Required fields missing: offerId, startLocationCode, endAddressLine, and startDateTime are required",
-      });
+      return sendError(res, "Required fields missing: offerId, startLocationCode, endAddressLine, and startDateTime are required", 400);
     }
 
     if (!data.passengers || data.passengers < 1) {
-      return res.status(400).json({
-        error: "At least one passenger is required",
-      });
+      return sendError(res, "At least one passenger is required", 400);
     }
 
     if (
       !data.passengerCharacteristics ||
       data.passengerCharacteristics.length === 0
     ) {
-      return res.status(400).json({
-        error: "Passenger characteristics are required",
-      });
+      return sendError(res, "Passenger characteristics are required", 400);
     }
 
     // Get Amadeus access token
@@ -535,11 +504,9 @@ export async function bookCarTransfer(
     });
 
     // Return success response
-    return res.status(201).json({
-      success: true,
-      message: userId
+    return sendSuccess(res, userId
         ? "Car transfer booking completed successfully and cart cleared"
-        : "Car transfer booking completed successfully",
+        : "Car transfer booking completed successfully", {
       booking: {
         id: result?.id,
         referenceId: result?.referenceId,
@@ -554,7 +521,7 @@ export async function bookCarTransfer(
       },
       amadeusResponse: amadeusResponse.data,
       cartCleared: userId ? true : false,
-    });
+    }, 201);
   } catch (error: any) {
     console.error(
       "Error booking car transfer:",
@@ -562,28 +529,13 @@ export async function bookCarTransfer(
     );
 
     if (error.response?.data) {
-      return res.status(error.response.status || 500).json({
-        error: "Amadeus API Error",
-        details: error.response.data,
-        message:
-          error.response.data.error_description ||
-          error.response.data.message ||
-          "Car transfer booking failed",
-      });
+      return sendError(res, error.response.data.error_description || error.response.data.message || "Car transfer booking failed", error.response.status || 502, error.response.data);
     }
 
     if (error.code === "P2002") {
-      return res.status(409).json({
-        error: "Booking reference already exists",
-        message: "Please try again",
-      });
+      return sendError(res, "Booking reference already exists", 409);
     }
 
-    return res.status(500).json({
-      error: "Internal server error",
-      message: error.message || "An unexpected error occurred",
-    });
-  } finally {
-    await prisma.$disconnect();
+    return sendError(res, "Internal server error", 500, error);
   }
 }

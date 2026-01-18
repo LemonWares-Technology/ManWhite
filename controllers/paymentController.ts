@@ -7,6 +7,7 @@ import {
   sendPaymentSuccessEmailWithRetry,
 } from "../utils/zeptomail";
 import { prisma } from "../lib/prisma";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 env.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
@@ -100,20 +101,12 @@ export const initializePayment = async (
     const { amount, email, bookingData, currency, baseAmountNGN } = req.body;
 
     if (!amount || !email || !currency) {
-      return res.status(400).json({
-        status: "error",
-        message: "Missing required parameters: amount, email, or currency",
-      });
+      return sendError(res, "Missing required parameters: amount, email, or currency", 400);
     }
 
     const supportedCurrencies = ["NGN", "USD"];
     if (!supportedCurrencies.includes(currency)) {
-      return res.status(400).json({
-        status: "error",
-        message: `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(
-          ", "
-        )}`,
-      });
+      return sendError(res, `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(", ")}`, 400);
     }
 
     const tx_ref = `FLIGHT-${Date.now()}-${Math.floor(
@@ -168,26 +161,19 @@ export const initializePayment = async (
       }
     );
 
-    return res.status(200).json({
-      status: "success",
-      data: {
-        publicKey: process.env.FLUTTERWAVE_PUBLIC_KEY || FLUTTERWAVE_PUBLIC_KEY,
-        reference: tx_ref,
-        amount,
-        currency,
-        paymentLink: response.data.data.link,
-      },
+    return sendSuccess(res, "Payment initialized successfully", {
+      publicKey: process.env.FLUTTERWAVE_PUBLIC_KEY || FLUTTERWAVE_PUBLIC_KEY,
+      reference: tx_ref,
+      amount,
+      currency,
+      paymentLink: response.data.data.link,
     });
   } catch (error: any) {
     console.error(
       "Payment initialization error:",
       error?.response?.data || error
     );
-    return res.status(500).json({
-      status: "error",
-      message: "Error initializing payment",
-      error: error?.response?.data?.message || error.message,
-    });
+    return sendError(res, "Error initializing payment", 500, error);
   }
 };
 
@@ -200,17 +186,11 @@ export const initializeStripePayment = async (
     const { amount, currency = "USD", email, bookingData } = req.body;
 
     if (!amount || !email) {
-      return res.status(400).json({
-        status: "error",
-        message: "Missing required parameters: amount and email",
-      });
+      return sendError(res, "Missing required parameters: amount and email", 400);
     }
 
     if (currency !== "USD") {
-      return res.status(400).json({
-        status: "error",
-        message: "This endpoint only supports USD currency",
-      });
+      return sendError(res, "This endpoint only supports USD currency", 400);
     }
 
     const paymentIntent = await stripe.paymentIntents.create({
@@ -222,21 +202,14 @@ export const initializeStripePayment = async (
       },
     });
 
-    return res.status(200).json({
-      status: "success",
-      data: {
-        clientSecret: paymentIntent.client_secret,
-        amount,
-        currency,
-      },
+    return sendSuccess(res, "Stripe payment initialized successfully", {
+      clientSecret: paymentIntent.client_secret,
+      amount,
+      currency,
     });
   } catch (error: any) {
     console.error("Stripe payment initialization error:", error);
-    return res.status(500).json({
-      status: "error",
-      message: "Error initializing Stripe payment",
-      error: error.message,
-    });
+    return sendError(res, "Error initializing Stripe payment", 500, error);
   }
 };
 
@@ -345,11 +318,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
     const tx_ref = req.query.tx_ref || req.body.tx_ref;
 
     if (!tx_ref || typeof tx_ref !== "string") {
-      return res.status(400).json({
-        success: false,
-        error: "VALIDATION_ERROR",
-        message: "Valid transaction reference is required",
-      });
+      return sendError(res, "Valid transaction reference is required", 400, { error: "VALIDATION_ERROR" });
     }
 
     const response: any = await axios.get(
@@ -373,12 +342,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
       response.data.status !== "success" ||
       paymentData.status !== "successful"
     ) {
-      return res.status(400).json({
-        success: false,
-        error: "PAYMENT_FAILED",
-        message: "Payment verification failed or payment not successful",
-        data: paymentData || null,
-      });
+      return sendError(res, "Payment verification failed or payment not successful", 400, { error: "PAYMENT_FAILED", data: paymentData || null });
     }
 
     // Parse meta.bookingData if it's a string
@@ -406,46 +370,25 @@ export const verifyFlutterwavePaymentWithEmail = async (
       }
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Payment verified successfully",
-      data: {
-        reference: paymentData.tx_ref,
-        amount: paymentData.amount,
-        currency: paymentData.currency,
-        status: paymentData.status,
-      },
+    return sendSuccess(res, "Payment verified successfully", {
+      reference: paymentData.tx_ref,
+      amount: paymentData.amount,
+      currency: paymentData.currency,
+      status: paymentData.status,
     });
   } catch (error: any) {
     console.error("Payment verification error:", error);
 
     if (error.code === "EAI_AGAIN") {
-      return res.status(504).json({
-        success: false,
-        error: "NETWORK_ERROR",
-        message: "DNS/network error. Please try again.",
-      });
+      return sendError(res, "DNS/network error. Please try again.", 504, { error: "NETWORK_ERROR" });
     }
 
     if (error.response) {
-      return res.status(502).json({
-        success: false,
-        error: "GATEWAY_ERROR",
-        message: "Payment gateway error",
-        details: error.response.data?.message || "Flutterwave API error",
-      });
+      return sendError(res, error.response.data?.message || "Payment gateway error", 502, { error: "GATEWAY_ERROR" });
     } else if (error.request) {
-      return res.status(504).json({
-        success: false,
-        error: "NETWORK_ERROR",
-        message: "No response from payment gateway",
-      });
+      return sendError(res, "No response from payment gateway", 504, { error: "NETWORK_ERROR" });
     } else {
-      return res.status(500).json({
-        success: false,
-        error: "SERVER_ERROR",
-        message: "Internal server error during verification",
-      });
+      return sendError(res, "Internal server error during verification", 500, error);
     }
   }
 };
@@ -460,10 +403,7 @@ export const verifyStripePayment = async (
     const paymentIntentId = req.query.payment_intent || req.body.payment_intent;
 
     if (!paymentIntentId) {
-      return res.status(400).json({
-        status: "error",
-        message: "Missing required parameter: payment_intent",
-      });
+      return sendError(res, "Missing required parameter: payment_intent", 400);
     }
 
     // Retrieve the PaymentIntent from Stripe
@@ -471,25 +411,18 @@ export const verifyStripePayment = async (
 
     // Check if the payment was successful
     if (paymentIntent.status === "succeeded") {
-      return res.status(200).json({
-        status: "success",
+      return sendSuccess(res, "Payment verified successfully", {
         verified: true,
         paymentData: paymentIntent,
       });
     } else {
-      return res.status(400).json({
-        status: "error",
+      return sendError(res, "Payment not successful or not found", 400, {
         verified: false,
-        message: "Payment not successful or not found",
         paymentData: paymentIntent,
       });
     }
   } catch (error: any) {
     console.error("Stripe payment verification error:", error);
-    return res.status(500).json({
-      status: "error",
-      message: "Error verifying Stripe payment",
-      error: error.message,
-    });
+    return sendError(res, "Error verifying Stripe payment", 500, error);
   }
 };

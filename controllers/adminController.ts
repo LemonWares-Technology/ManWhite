@@ -6,6 +6,7 @@ import crypto from "crypto";
 import bcryptjs from "bcryptjs";
 import { sendEmailBookingProcess } from "../utils/adminEmailService";
 import { sendAgentActivationToken } from "../utils/zeptomail";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 import env from "dotenv";
 env.config();
 
@@ -18,18 +19,14 @@ export async function createAdminAccount(
   const { email, firstName, lastName } = req.body;
 
   if (!email) {
-    return res.status(400).json({
-      error: `Email is required !`,
-    });
+    return sendError(res, "Email is required!", 400);
   }
 
   try {
     const existingUser = await prisma.user.findFirst({ where: { email } });
 
     if (existingUser) {
-      return res.status(400).json({
-        error: `Admin with email ${email} already exists`,
-      });
+      return sendError(res, `Admin with email ${email} already exists`, 400);
     }
 
     const adminToken = crypto.randomBytes(32).toString("hex");
@@ -45,17 +42,10 @@ export async function createAdminAccount(
       },
     });
 
-    return res.status(201).json({
-      message: `Admin created`,
-      user: adminUser,
-      token: adminToken,
-    });
+    return sendSuccess(res, "Admin created", { user: adminUser, token: adminToken }, 201);
   } catch (error) {
     console.error(`Admin account creation error ${error}`);
-
-    return res.status(500).json({
-      message: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -63,24 +53,18 @@ export async function adminLogin(req: Request, res: Response): Promise<any> {
   const { email, adminToken } = req.body;
 
   if (!email || !adminToken) {
-    return res.status(400).json({
-      message: `Email and adminToken are required!`,
-    });
+    return sendError(res, "Email and adminToken are required!", 400);
   }
 
   try {
     const admin = await prisma.user.findUnique({ where: { email } });
 
     if (!admin || admin.role !== "ADMIN") {
-      return res.status(401).json({
-        error: `Unauthorized: Not an admin`,
-      });
+      return sendError(res, "Unauthorized: Not an admin", 401);
     }
 
     if (admin.adminToken !== adminToken) {
-      return res.status(401).json({
-        message: `Invalid admin token`,
-      });
+      return sendError(res, "Invalid admin token", 401);
     }
 
     const token = jwt.sign(
@@ -92,14 +76,10 @@ export async function adminLogin(req: Request, res: Response): Promise<any> {
       { expiresIn: "4h" }
     );
 
-    return res.json({
-      token,
-      message: `Admin logged in successfully`,
-      data: admin,
-    });
+    return sendSuccess(res, "Admin logged in successfully", { token, data: admin });
   } catch (error) {
     console.error(`Admin login error ${error}`);
-    return res.status(500).json({ error: `Internal server error` });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -108,7 +88,7 @@ export async function createAgent(req: Request, res: Response): Promise<any> {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ error: "Agent email is required" });
+    return sendError(res, "Agent email is required", 400);
   }
 
   try {
@@ -123,9 +103,7 @@ export async function createAgent(req: Request, res: Response): Promise<any> {
     // Check if requester is admin
     const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
     if (!adminUser || adminUser.role !== Role.ADMIN) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized: Only admins can create agents" });
+      return sendError(res, "Unauthorized: Only admins can create agents", 403);
     }
 
     // Create new agent user
@@ -137,14 +115,10 @@ export async function createAgent(req: Request, res: Response): Promise<any> {
       },
     });
 
-    return res.status(201).json({
-      message: "Agent created successfully",
-      agentId: agent.id,
-      email: agent.email,
-    });
+    return sendSuccess(res, "Agent created successfully", { agentId: agent.id, email: agent.email }, 201);
   } catch (error) {
     console.error("Agent creation error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -156,7 +130,7 @@ export async function createUserByAdmin(
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ error: "User email is required" });
+    return sendError(res, "User email is required", 400);
   }
 
   try {
@@ -171,9 +145,7 @@ export async function createUserByAdmin(
     // Check if requester is admin
     const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
     if (!adminUser || adminUser.role !== Role.ADMIN) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized: Only admins can create users" });
+      return sendError(res, "Unauthorized: Only admins can create users", 403);
     }
 
     // Create new  user
@@ -185,14 +157,10 @@ export async function createUserByAdmin(
       },
     });
 
-    return res.status(201).json({
-      message: "User created successfully",
-      userId: user.id,
-      email: user.email,
-    });
+    return sendSuccess(res, "User created successfully", { userId: user.id, email: user.email }, 201);
   } catch (error) {
     console.error("User creation error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -217,9 +185,7 @@ export async function updateUserByAdmin(
     // Check if admin exists and has admin role
     const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
     if (!adminUser || adminUser.role !== Role.ADMIN) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized: Only admins can update users" });
+      return sendError(res, "Unauthorized: Only admins can update users", 403);
     }
 
     // Check if target user exists
@@ -247,13 +213,10 @@ export async function updateUserByAdmin(
       },
     });
 
-    return res.status(200).json({
-      message: "User updated successfully",
-      user: updatedUser,
-    });
+    return sendSuccess(res, "User updated successfully", updatedUser);
   } catch (error) {
     console.error("User update error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -267,9 +230,7 @@ export async function deleteUserByAdmin(
     // Check if admin exists and has admin role
     const adminUser = await prisma.user.findUnique({ where: { id: adminId } });
     if (!adminUser || adminUser.role !== Role.ADMIN) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized: Only admins can delete users" });
+      return sendError(res, "Unauthorized: Only admins can delete users", 403);
     }
 
     // Check if target user exists
@@ -277,18 +238,15 @@ export async function deleteUserByAdmin(
       where: { id: userId },
     });
     if (!existingUser) {
-      return res.status(404).json({ error: "User not found" });
+      return sendError(res, "User not found", 404);
     }
 
     await prisma.user.delete({ where: { id: userId } });
 
-    return res.status(200).json({
-      message: "User deleted successfully",
-      userId,
-    });
+    return sendSuccess(res, "User deleted successfully", { userId });
   } catch (error) {
     console.error("User deletion error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -299,11 +257,11 @@ export async function verifyAgent(req: Request, res: Response): Promise<any> {
     const agent = await prisma.user.findUnique({ where: { id: agentId } });
 
     if (!agent || agent.role !== "AGENT") {
-      return res.status(404).json({ error: `Agent not found` });
+      return sendError(res, "Agent not found", 404);
     }
 
     if (agent.verified) {
-      return res.status(400).json({ error: `Agent already verified` });
+      return sendError(res, "Agent already verified", 400);
     }
 
     // Generate one-time-token for password setup
@@ -321,16 +279,10 @@ export async function verifyAgent(req: Request, res: Response): Promise<any> {
 
     await sendAgentActivationToken(updatedAgent);
 
-    return res.status(200).json({
-      message: `Agent verified, notification sent to agent's inbox`,
-      token: oneTimeToken,
-      expires: tokenExpiry,
-    });
+    return sendSuccess(res, "Agent verified, notification sent to agent's inbox", { token: oneTimeToken, expires: tokenExpiry });
   } catch (error) {
     console.error(`Agent verification error: ${error}`);
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -341,9 +293,7 @@ export async function agentSetupProfile(
   const { token, firstName, lastName, password } = req.body;
 
   if (!token || !password) {
-    return res.status(400).json({
-      error: `Token and password parameters are required`,
-    });
+    return sendError(res, "Token and password parameters are required", 400);
   }
 
   try {
@@ -358,7 +308,7 @@ export async function agentSetupProfile(
     });
 
     if (!agent) {
-      return res.status(400).json({ error: `Invalid or expired token` });
+      return sendError(res, "Invalid or expired token", 400);
     }
 
     const salt = await bcryptjs.genSalt(10);
@@ -376,14 +326,10 @@ export async function agentSetupProfile(
       },
     });
 
-    return res.json({
-      message: `Profile setup complete. Proceed to login`,
-      agent,
-    });
+    return sendSuccess(res, "Profile setup complete. Proceed to login", agent);
   } catch (error) {
     console.error(`Agent profile setup error ${error}`);
-
-    return res.status(500).json({ error: `Internal server error` });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -392,17 +338,13 @@ export async function loginAgent(req: Request, res: Response): Promise<any> {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({
-        message: `Email and password are required`,
-      });
+      return sendError(res, "Email and password are required", 400);
     }
 
     const agent = await prisma.user.findUnique({ where: { email } });
 
     if (!agent || agent.role !== "AGENT") {
-      return res.status(401).json({
-        error: `Unauthorized: Not an agent`,
-      });
+      return sendError(res, "Unauthorized: Not an agent", 401);
     }
 
     const isPasswordValid = await bcryptjs.compare(
@@ -411,9 +353,7 @@ export async function loginAgent(req: Request, res: Response): Promise<any> {
     );
 
     if (!isPasswordValid) {
-      return res.status(400).json({
-        error: `Invalid password`,
-      });
+      return sendError(res, "Invalid password", 400);
     }
 
     const token = jwt.sign(
@@ -422,16 +362,10 @@ export async function loginAgent(req: Request, res: Response): Promise<any> {
       { expiresIn: "1h" }
     );
 
-    return res.status(200).json({
-      message: `Login successful`,
-      token,
-      data: agent,
-    });
+    return sendSuccess(res, "Login successful", { token, data: agent });
   } catch (error: any) {
     console.error(`Error logging in agent`, error);
-    return res.status(500).json({
-      message: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -442,21 +376,16 @@ export async function getAgentAccountById(
   const { agentId } = req.params;
 
   try {
-    const agent = await prisma.user.findMany({ where: { id: agentId } });
+    const agent = await prisma.user.findUnique({ where: { id: agentId } });
 
-    if (!agent) {
-      return res.status(404).json({ error: `Agent account not found` });
+    if (!agent || agent.role !== "AGENT") {
+      return sendError(res, "Agent account not found", 404);
     }
 
-    return res.status(200).json({
-      message: `Details fetched successfully`,
-      data: agent,
-    });
+    return sendSuccess(res, "Details fetched successfully", agent);
   } catch (error: any) {
     console.error(`Error getting agent account by id ${error}`);
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -467,20 +396,14 @@ export async function getAllAgentAccounts(
   try {
     const agents = await prisma.user.findMany({ where: { role: "AGENT" } });
 
-    if (!agents) {
-      return res.status(404).json({ error: `No agent records found` });
+    if (agents.length === 0) {
+      return sendSuccess(res, "No agent records found", []);
     }
 
-    return res.status(200).json({
-      message: `All agent accounts fetched successfully`,
-      data: agents,
-    });
+    return sendSuccess(res, "All agent accounts fetched successfully", agents);
   } catch (error: any) {
     console.error(`Error getting all agent account:`, error);
-
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -494,20 +417,15 @@ export async function deleteAgentAccount(
     const agent = await prisma.user.findUnique({ where: { id: agentId } });
 
     if (!agent) {
-      return res.status(404).json({ error: `Agent account not found` });
+      return sendError(res, "Agent account not found", 404);
     }
 
     await prisma.user.delete({ where: { id: agentId } });
 
-    return res.status(200).json({
-      message: `Agent account deleted successfully`,
-    });
+    return sendSuccess(res, "Agent account deleted successfully");
   } catch (error: any) {
     console.error(`Error deleting agent account:`, error);
-
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -543,10 +461,10 @@ export async function getAllBookings(
       },
     });
 
-    return res.status(200).json({ bookings });
+    return sendSuccess(res, "All bookings fetched successfully", bookings);
   } catch (error: any) {
     console.error("Error fetching bookings:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -640,7 +558,7 @@ export async function getBookingAnalytics(
       },
     });
 
-    return res.status(200).json({
+    return sendSuccess(res, "Booking analytics fetched successfully", {
       totalBookings,
       bookingsByStatus,
       bookingsByType,
@@ -652,7 +570,7 @@ export async function getBookingAnalytics(
     });
   } catch (error: any) {
     console.error("Error fetching booking analytics:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -668,7 +586,7 @@ export async function createExclusion(
     });
 
     if (airline) {
-      return res.status(400).json({ error: " IataCode already exists" });
+      return sendError(res, "IataCode already exists", 400);
     }
 
     const newAirline = await prisma.excludedAirline.create({
@@ -677,9 +595,9 @@ export async function createExclusion(
         reason,
       },
     });
-    return res.status(201).json(newAirline);
+    return sendSuccess(res, "Airline exclusion created successfully", newAirline, 201);
   } catch (error: any) {
-    return res.status(500).json({ error: "Internal Server Error" });
+    return sendError(res, "Internal Server Error", 500, error);
   }
 }
 
@@ -690,12 +608,10 @@ export async function readExclusion(
   try {
     const airlineExculsion = await prisma.excludedAirline.findMany();
 
-    return res.status(200).json(airlineExculsion);
+    return sendSuccess(res, "Airline exclusions fetched successfully", airlineExculsion);
   } catch (error: any) {
     console.error(`Error`, error);
-    return res.status(500).json({
-      error,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -707,7 +623,7 @@ export async function updateExclusion(
   const { airlineCode, reason } = req.body;
   try {
     if (!airlineCode) {
-      return res.status(400).json({ error: `Iata field is required` });
+      return sendError(res, "Iata field is required", 400);
     }
 
     const iata = await prisma.excludedAirline.findUnique({
@@ -722,11 +638,10 @@ export async function updateExclusion(
       },
     });
 
-    return res.status(201).json({ message: `IATA Code successfully updated` });
+    return sendSuccess(res, "IATA Code successfully updated");
   } catch (error: any) {
     console.error(`Response: `, error);
-
-    return res.status(500).json({ error: `Internal server error` });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -738,7 +653,7 @@ export async function deleteExclusion(
     let { iataCode } = req.params;
 
     if (!iataCode || typeof iataCode !== "string") {
-      return res.status(400).json({ error: "IATA Code parameter is required" });
+      return sendError(res, "IATA Code parameter is required", 400);
     }
 
     // Normalize IATA code: trim and uppercase
@@ -750,9 +665,7 @@ export async function deleteExclusion(
     });
 
     if (!existing) {
-      return res
-        .status(404)
-        .json({ error: `IATA Code '${iataCode}' does not exist` });
+      return sendError(res, `IATA Code '${iataCode}' does not exist`, 404);
     }
 
     // Delete the exclusion record
@@ -760,12 +673,10 @@ export async function deleteExclusion(
       where: { airlineCode: iataCode },
     });
 
-    return res
-      .status(200)
-      .json({ message: `IATA Code '${iataCode}' deleted successfully` });
+    return sendSuccess(res, `IATA Code '${iataCode}' deleted successfully`);
   } catch (error: any) {
     console.error("Error deleting IATA exclusion:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -783,10 +694,10 @@ export const createFlightAddon = async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json({ success: true, addon });
+    return sendSuccess(res, "Addon created successfully", addon, 201);
   } catch (error) {
     console.error("Create Addon Error:", error);
-    res.status(500).json({ success: false, message: "Failed to create addon" });
+    return sendError(res, "Failed to create addon", 500, error);
   }
 };
 
@@ -800,10 +711,10 @@ export const getAllFlightAddons = async (_req: Request, res: Response) => {
       orderBy: { createdAt: "desc" },
     });
 
-    res.status(200).json({ success: true, addons });
+    return sendSuccess(res, "Addons fetched successfully", addons);
   } catch (error) {
     console.error("Get Addons Error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch addons" });
+    return sendError(res, "Failed to fetch addons", 500, error);
   }
 };
 
@@ -818,10 +729,10 @@ export const updateFlightAddon = async (req: Request, res: Response) => {
       data: { name, description, price, currency },
     });
 
-    res.status(200).json({ success: true, addon });
+    return sendSuccess(res, "Addon updated successfully", addon);
   } catch (error) {
     console.error("Update Addon Error:", error);
-    res.status(500).json({ success: false, message: "Failed to update addon" });
+    return sendError(res, "Failed to update addon", 500, error);
   }
 };
 
@@ -831,10 +742,10 @@ export const deleteFlightAddon = async (req: Request, res: Response) => {
 
   try {
     await prisma.flightAddon.delete({ where: { id } });
-    res.status(200).json({ success: true, message: "Addon deleted" });
+    return sendSuccess(res, "Addon deleted successfully");
   } catch (error) {
     console.error("Delete Addon Error:", error);
-    res.status(500).json({ success: false, message: "Failed to delete addon" });
+    return sendError(res, "Failed to delete addon", 500, error);
   }
 };
 
@@ -866,9 +777,7 @@ export const addExistingAddonsToFlightOffer = async (
       where: { id: { in: addonIds } },
     });
     if (existingAddons.length !== addonIds.length) {
-      return res
-        .status(400)
-        .json({ message: "One or more addonIds are invalid" });
+      return sendError(res, "One or more addonIds are invalid", 400);
     }
 
     // Update addons to link to flight offer
@@ -877,15 +786,10 @@ export const addExistingAddonsToFlightOffer = async (
       data: { flightOfferId },
     });
 
-    return res.status(200).json({
-      message: `${updateResult.count} addons linked to flight offer successfully`,
-    });
+    return sendSuccess(res, `${updateResult.count} addons linked to flight offer successfully`);
   } catch (error: any) {
     console.error("Error linking addons to flight offer:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -922,9 +826,7 @@ export const removeAddonsFromFlightOffer = async (
     });
 
     if (existingAddons.length !== addonIds.length) {
-      return res.status(400).json({
-        message: "One or more addonIds are not linked to this flight offer",
-      });
+      return sendError(res, "One or more addonIds are not linked to this flight offer", 400);
     }
 
     // Remove association by setting flightOfferId to null
@@ -933,15 +835,10 @@ export const removeAddonsFromFlightOffer = async (
       data: { flightOfferId: null },
     });
 
-    return res.status(200).json({
-      message: `${updateResult.count} addons unlinked from flight offer successfully`,
-    });
+    return sendSuccess(res, `${updateResult.count} addons unlinked from flight offer successfully`);
   } catch (error: any) {
     console.error("Error unlinking addons from flight offer:", error);
-    return res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    return sendError(res, "Server error", 500, error);
   }
 };
 
@@ -960,12 +857,10 @@ export async function sendEmailBookingProcessController(
       text,
     });
 
-    return res
-      .status(200)
-      .json({ message: "Email sent successfully", data: result });
+    return sendSuccess(res, "Email sent successfully", result);
   } catch (error: any) {
     console.error("Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -974,9 +869,7 @@ export async function getUserRole(req: Request, res: Response): Promise<any> {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        message: `Missing required parameter: id`,
-      });
+      return sendError(res, "Missing required parameter: email", 400);
     }
 
     const account = await prisma.user.findUnique({
@@ -985,20 +878,12 @@ export async function getUserRole(req: Request, res: Response): Promise<any> {
     });
 
     if (!account) {
-      return res.status(404).json({
-        message: `Account does not exist`,
-      });
+      return sendError(res, "Account does not exist", 404);
     }
 
-    return res.status(200).json({
-      message: `Success`,
-      data: account,
-    });
+    return sendSuccess(res, "Success", account);
   } catch (error: any) {
     console.error(`Error:`, error);
-
-    return res.status(500).json({
-      message: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }

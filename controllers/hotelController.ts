@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import getAmadeusToken from "../utils/getToken";
 import axios from "axios";
 import { prisma } from "../lib/prisma";
+import { sendSuccess, sendError } from "../utils/apiResponse";
 import {
   extractAmadeusReference,
   extractCurrency,
@@ -20,15 +21,11 @@ export async function hotelAutocomplete(
     const { keyword, subType } = req.query;
 
     if (!keyword || typeof keyword !== "string") {
-      return res
-        .status(400)
-        .json({ error: "keyword query parameter is required" });
+      return sendError(res, "keyword query parameter is required", 400);
     }
 
     if (keyword.length < 3) {
-      return res
-        .status(400)
-        .json({ error: "keyword must be at least 3 characters long" });
+      return sendError(res, "keyword must be at least 3 characters long", 400);
     }
 
     const token = await getAmadeusToken();
@@ -67,10 +64,7 @@ export async function hotelAutocomplete(
     const hotels = response.data?.data || [];
 
     if (hotels.length === 0) {
-      return res.status(200).json({
-        suggestions: [],
-        message: "No hotels found for the given keyword",
-      });
+      return sendSuccess(res, "No hotels found for the given keyword", []);
     }
 
     // Extract relevant hotel info for autocomplete
@@ -91,44 +85,10 @@ export async function hotelAutocomplete(
     //   // Include distance if search was location-based
     // }));
 
-    return res.status(200).json({
-      data: hotels,
-      count: hotels.length,
-      keyword: keyword.trim(),
-    });
+    return sendSuccess(res, "Hotels fetched successfully", hotels);
   } catch (error: any) {
-    console.error(
-      "Error fetching hotel autocomplete:",
-      error.response?.data || error.message
-    );
-
-    // Handle specific Amadeus errors
-    if (error.response?.status === 400) {
-      return res.status(400).json({
-        error: "Invalid request parameters",
-        details: error.response?.data,
-      });
-    }
-
-    if (error.response?.status === 401) {
-      return res.status(401).json({
-        error: "Authentication failed",
-      });
-    }
-
-    if (error.response?.status === 429) {
-      return res.status(429).json({
-        error: "Rate limit exceeded",
-        message: "Too many requests. Please try again later.",
-      });
-    }
-
-    return res.status(500).json({
-      error: "Failed to fetch hotel autocomplete suggestions",
-      ...(process.env.NODE_ENV === "development" && {
-        details: error.message,
-      }),
-    });
+    console.error("Error fetching hotel autocomplete:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch hotel autocomplete suggestions", error.response?.status || 500, error);
   }
 }
 
@@ -141,9 +101,7 @@ export const searchHotels = async (
     const { cityCode } = req.query;
 
     if (!cityCode) {
-      return res.status(400).json({
-        message: "Missing required query parameters: CityCode is required.",
-      });
+      return sendError(res, "Missing required query parameters: CityCode is required.", 400);
     }
 
     const token = await getAmadeusToken();
@@ -163,19 +121,10 @@ export const searchHotels = async (
 
     console.log("Keyword:", cityCode); // Log the keyword for debugging
 
-    return res.status(200).json({
-      message: "Hotels fetched successfully",
-      data: hotelResponse.data, // Return only the data part
-    });
+    return sendSuccess(res, "Hotels fetched successfully", hotelResponse.data);
   } catch (error: any) {
-    console.error("Error fetching hotels:", error); // log the entire error
-    console.error("Amadeus API Error Details:", error.response?.data); // log details
-
-    return res.status(500).json({
-      message: "Error occurred while searching for hotels",
-      error: error.message || "Unknown error",
-      amadeusError: error.response?.data, // include Amadeus error details in the response
-    });
+    console.error("Error fetching hotels:", error);
+    return sendError(res, "Error occurred while searching for hotels", 500, error);
   }
 };
 
@@ -198,16 +147,11 @@ export async function hotelOfferSearch(
 
     // Validate required parameters
     if (!hotelIds) {
-      return res.status(400).json({
-        error: "Missing required parameter: hotelIds",
-      });
+      return sendError(res, "Missing required parameter: hotelIds", 400);
     }
 
     if (!checkInDate || !checkOutDate) {
-      return res.status(400).json({
-        error:
-          "Missing required parameters: checkInDate and checkOutDate are required",
-      });
+      return sendError(res, "Missing required parameters: checkInDate and checkOutDate are required", 400);
     }
 
     // Validate date format (YYYY-MM-DD)
@@ -216,16 +160,12 @@ export async function hotelOfferSearch(
       !dateRegex.test(checkInDate as string) ||
       !dateRegex.test(checkOutDate as string)
     ) {
-      return res.status(400).json({
-        error: "Invalid date format. Use YYYY-MM-DD format",
-      });
+      return sendError(res, "Invalid date format. Use YYYY-MM-DD format", 400);
     }
 
     // Validate that check-in is before check-out
     if (new Date(checkInDate as string) >= new Date(checkOutDate as string)) {
-      return res.status(400).json({
-        error: "checkInDate must be before checkOutDate",
-      });
+      return sendError(res, "checkInDate must be before checkOutDate", 400);
     }
 
     const token = await getAmadeusToken();
@@ -303,20 +243,7 @@ export async function hotelOfferSearch(
         })) || [],
     }));
 
-    return res.status(200).json({
-      message: "Hotel offers retrieved successfully",
-      data: formattedOffers,
-      count: formattedOffers.length,
-      searchParams: {
-        hotelIds,
-        checkInDate,
-        checkOutDate,
-        adults: adults || 1,
-        ...(children && { children }),
-        ...(rooms && { rooms }),
-        ...(currency && { currency }),
-      },
-    });
+    return sendSuccess(res, "Hotel offers retrieved successfully", formattedOffers);
   } catch (error: any) {
     console.error(
       "Error fetching hotel offers:",
@@ -331,23 +258,7 @@ export async function hotelOfferSearch(
         errorDetails?.code === 3664 ||
         errorDetails?.title?.includes("NO ROOMS AVAILABLE")
       ) {
-        return res.status(200).json({
-          message: "Search completed successfully",
-          data: [],
-          availability: {
-            status: "NO_ROOMS_AVAILABLE",
-            hotelId:
-              errorDetails?.source?.parameter?.split("=")?.[1] || "unknown",
-            reason:
-              "No rooms available at the requested property for the selected dates",
-            suggestions: [
-              "Try different dates",
-              "Check nearby hotels",
-              "Modify guest count",
-              "Contact hotel directly for availability",
-            ],
-          },
-        });
+        return sendSuccess(res, "No rooms available for the selected dates", []);
       }
 
       // Handle "ROOM OR RATE NOT FOUND" error (code 11226)
@@ -355,28 +266,13 @@ export async function hotelOfferSearch(
         errorDetails?.code === 11226 ||
         errorDetails?.title === "ROOM OR RATE NOT FOUND"
       ) {
-        return res.status(404).json({
-          error: "Room or rate not found for the specified hotel and dates.",
-          reason:
-            "The requested room type or rate code does not exist or is unavailable.",
-          suggestions: [
-            "Verify the hotel ID and room/rate parameters.",
-            "Try different dates or room configurations.",
-            "Contact support if the problem persists.",
-          ],
-          details:
-            process.env.NODE_ENV === "development" ? errorDetails : undefined,
-        });
+        return sendError(res, "Room or rate not found for the specified hotel and dates.", 404);
       }
 
       // Default 400 error handler
-      return res.status(500).json({
-        error: "Failed to fetch hotel offers",
-        ...(process.env.NODE_ENV === "development" && {
-          details: error.message,
-        }),
-      });
+      return sendError(res, "Failed to fetch hotel offers", 500, error);
     }
+    return sendError(res, "An unexpected error occurred", 500, error);
   }
 }
 
@@ -638,16 +534,12 @@ export async function searchHotelsWithOffers(
 
     // Validate cityCode
     if (!cityCode || typeof cityCode !== "string") {
-      console.warn("Validation failed: Missing or invalid cityCode");
-      return res.status(400).json({ error: "Missing or invalid cityCode" });
+      return sendError(res, "Missing or invalid cityCode", 400);
     }
 
     // Validate checkInDate and checkOutDate presence and format
     if (!checkInDate || !checkOutDate) {
-      console.warn("Validation failed: Missing checkInDate or checkOutDate");
-      return res
-        .status(400)
-        .json({ error: "Missing checkInDate or checkOutDate" });
+      return sendError(res, "Missing checkInDate or checkOutDate", 400);
     }
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -655,17 +547,11 @@ export async function searchHotelsWithOffers(
       !dateRegex.test(checkInDate as string) ||
       !dateRegex.test(checkOutDate as string)
     ) {
-      console.warn("Validation failed: Dates not in YYYY-MM-DD format");
-      return res
-        .status(400)
-        .json({ error: "Dates must be in YYYY-MM-DD format" });
+      return sendError(res, "Dates must be in YYYY-MM-DD format", 400);
     }
 
     if (new Date(checkInDate as string) >= new Date(checkOutDate as string)) {
-      console.warn("Validation failed: checkInDate is not before checkOutDate");
-      return res
-        .status(400)
-        .json({ error: "checkInDate must be before checkOutDate" });
+      return sendError(res, "checkInDate must be before checkOutDate", 400);
     }
 
     console.log("Validation passed for input parameters");
@@ -689,8 +575,7 @@ export async function searchHotelsWithOffers(
     console.log(`Fetched ${hotels.length} hotels for cityCode ${cityCode}`);
 
     if (hotels.length === 0) {
-      console.info("No hotels found for the specified cityCode");
-      return res.status(200).json({ message: "No hotels found", data: [] });
+      return sendSuccess(res, "No hotels found", []);
     }
 
     // Limit hotels to 50 to control load
@@ -703,8 +588,7 @@ export async function searchHotelsWithOffers(
       .filter((id: string | undefined) => !!id);
 
     if (hotelIds.length === 0) {
-      console.info("No hotelIds found in limited hotels");
-      return res.status(200).json({ message: "No hotelIds found", data: [] });
+      return sendSuccess(res, "No hotelIds found", []);
     }
 
     console.log(`Extracted ${hotelIds.length} hotelIds`);
@@ -738,11 +622,7 @@ export async function searchHotelsWithOffers(
     console.log(`Received ${offersData.length} hotels with offers`);
 
     if (offersData.length === 0) {
-      console.info("No hotel offers available for the selected dates");
-      return res.status(200).json({
-        message: "No hotel offers available for the selected dates",
-        data: [],
-      });
+      return sendSuccess(res, "No hotel offers available for the selected dates", []);
     }
 
     // Format hotels with offers for response
@@ -787,31 +667,10 @@ export async function searchHotelsWithOffers(
         })) || [],
     }));
 
-    console.log("Sending response with hotels and offers");
-    return res.status(200).json({
-      message: "Hotels with offers retrieved successfully",
-      count: formattedHotelsWithOffers.length,
-      data: formattedHotelsWithOffers,
-      searchParams: {
-        cityCode,
-        checkInDate,
-        checkOutDate,
-        adults: adults || 1,
-        ...(children && { children }),
-        ...(rooms && { rooms }),
-        ...(currency && { currency }),
-      },
-    });
+    return sendSuccess(res, "Hotels with offers retrieved successfully", formattedHotelsWithOffers);
   } catch (error: any) {
-    console.error(
-      "Error in searchHotelsWithOffers:",
-      error.response?.data || error.message
-    );
-    return res.status(500).json({
-      error: "Failed to fetch hotels with offers",
-      details:
-        process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+    console.error("Error in searchHotelsWithOffers:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch hotels with offers", 500, error);
   }
 }
 
@@ -823,9 +682,7 @@ export async function getOfferPricing(
     const { offerId } = req.params;
 
     if (!offerId) {
-      return res.status(400).json({
-        error: `Missing required parameter: offerId`,
-      });
+      return sendError(res, "Missing required parameter: offerId", 400);
     }
 
     const token = await getAmadeusToken();
@@ -839,23 +696,10 @@ export async function getOfferPricing(
       }
     );
 
-    return res.status(200).json({
-      message: `Success`,
-      data: response.data, // Return only the data, not the entire response object
-    });
+    return sendSuccess(res, "Success", response.data);
   } catch (error: any) {
     console.error(`Error fetching hotel offer:`, error);
-
-    // Handle specific API errors
-    if (error.response) {
-      return res.status(error.response.status).json({
-        error: error.response.data?.error?.message || "API request failed",
-      });
-    }
-
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -868,9 +712,7 @@ export async function getHotelRating(
     const { hotelIds } = req.query;
 
     if (!hotelIds) {
-      return res.status(400).json({
-        error: `Missing required parameter: hotelIds`,
-      });
+      return sendError(res, "Missing required parameter: hotelIds", 400);
     }
 
     const token = await getAmadeusToken();
@@ -887,22 +729,10 @@ export async function getHotelRating(
       }
     );
 
-    return res.status(200).json({
-      message: `Success`,
-      data: response.data, // Return only the data
-    });
+    return sendSuccess(res, "Success", response.data);
   } catch (error: any) {
     console.error(`Error fetching hotel ratings:`, error);
-
-    if (error.response) {
-      return res.status(error.response.status).json({
-        error: error.response.data?.error?.message || "API request failed",
-      });
-    }
-
-    return res.status(500).json({
-      error: `Internal server error`,
-    });
+    return sendError(res, "Internal server error", 500, error);
   }
 }
 
@@ -1068,20 +898,16 @@ export async function bookHotel(req: Request, res: Response): Promise<any> {
   try {
     const { data } = req.body;
 
-    // Get user context from request (adjust based on your auth implementation)
-    const currentUserId = req.User?.id || null; // Assuming you have user in req from auth middleware
+    // @ts-ignore
+    const currentUserId = req.user?.id || null; // Assuming you have user in req from auth middleware
 
     if (!data) {
-      return res.status(400).json({
-        error: "Missing booking data",
-      });
+      return sendError(res, "Missing booking data", 400);
     }
 
     // Validate required fields
     if (!data.guests || data.guests.length === 0) {
-      return res.status(400).json({
-        error: "At least one guest is required",
-      });
+      return sendError(res, "At least one guest is required", 400);
     }
 
     // Get Amadeus access token
@@ -1209,9 +1035,7 @@ export async function bookHotel(req: Request, res: Response): Promise<any> {
     });
 
     // Return success response
-    return res.status(201).json({
-      success: true,
-      message: "Hotel booking completed successfully",
+    return sendSuccess(res, "Hotel booking completed successfully", {
       booking: {
         id: completeBooking?.id,
         referenceId: completeBooking?.referenceId,
@@ -1223,40 +1047,9 @@ export async function bookHotel(req: Request, res: Response): Promise<any> {
         travelers: completeBooking?.travelers,
       },
       amadeusResponse: amadeusResponse.data,
-    });
+    }, 201);
   } catch (error: any) {
-    console.error(
-      "Error booking hotel:",
-      error.response?.data || error.message
-    );
-
-    // If it's an Amadeus API error, return specific error
-    if (error.response?.data) {
-      return res.status(error.response.status || 500).json({
-        error: "Amadeus API Error",
-        details: error.response.data,
-        message:
-          error.response.data.error_description ||
-          error.response.data.message ||
-          "Hotel booking failed",
-      });
-    }
-
-    // If it's a database error
-    if (error.code === "P2002") {
-      return res.status(409).json({
-        error: "Booking reference already exists",
-        message: "Please try again",
-      });
-    }
-
-    // Generic error
-    return res.status(500).json({
-      error: "Internal server error",
-      message: error.message || "An unexpected error occurred",
-    });
-  } finally {
-    // Clean up Prisma connection
-    await prisma.$disconnect();
+    console.error("Error booking hotel:", error.response?.data || error.message);
+    return sendError(res, "Hotel booking failed", error.response?.status || 500, error);
   }
 }
