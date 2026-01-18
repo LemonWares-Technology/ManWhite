@@ -1,0 +1,32 @@
+<div class="text-center mb-20">
+  <span class="success-icon">✓</span>
+  <h2 style="margin: 0; color: #222;">Payment Successful!</h2>
+  <p>Thank you for booking with Manwhit Areos. We have received your payment.</p>
+</div>
+
+<div class="info-box">
+  <h3 style="margin-top: 0; color: #D32F2F; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">Payment Receipt</h3>
+  <table>
+    <tr><td>Transaction ID</td><td>{{paymentData.tx_ref}}</td></tr>
+    <tr><td>Amount Paid</td><td>{{amount}}</td></tr>
+    <tr><td>Date</td><td>{{date}}</td></tr>
+    <tr><td>Status</td><td><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; text-transform: uppercase;">Paid</span></td></tr>
+  </table>
+</div>
+
+{{#if booking.flightDetails}}
+<div class="info-box" style="border-left-color: #333;">
+  <h3 style="margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">Flight Summary</h3>
+  <div style="font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 10px;">
+    {{booking.flightDetails.departure.city}} <span style="color: #D32F2F; margin: 0 10px;">✈</span> {{booking.flightDetails.arrival.city}}
+  </div>
+  {{#if booking.flightDetails.departureDate}}
+  <p class="text-center" style="color: #666;">Date: {{flightDate}}</p>
+  {{/if}}
+</div>
+{{/if}}
+
+<div class="text-center mt-20">
+  <p>Your official booking confirmation and e-ticket will follow shortly.</p>
+  <a href="#" class="button">View My Bookings</a>
+</div>

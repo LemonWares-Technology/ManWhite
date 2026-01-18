@@ -42,8 +42,8 @@ const formatAmount = (amount: number, currency: string) => {
 // Compile Template Helper
 const compileTemplate = async (templateName: string, data: any) => {
   const templatesDir = path.join(__dirname, "../templates");
-  const baseTemplatePath = path.join(templatesDir, "base.hbs");
-  const templatePath = path.join(templatesDir, `${templateName}.hbs`);
+  const baseTemplatePath = path.join(templatesDir, "base.html");
+  const templatePath = path.join(templatesDir, `${templateName}.html`);
 
   try {
     const baseSource = fs.readFileSync(baseTemplatePath, "utf8");

@@ -15,7 +15,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"test@example.com\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"password\": \"password123\"\n}",
+							"raw": "{\n    \"email\": \"test@example.com\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -26,13 +26,47 @@
 					}
 				},
 				{
+					"name": "Verify Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"code\": \"123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/verify-account"
+					}
+				},
+				{
+					"name": "Create Password (Complete Profile)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"password\": \"Password123!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/{{userId}}/create-password"
+					}
+				},
+				{
 					"name": "Login",
 					"request": {
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}",
+							"raw": "{\n    \"email\": \"test@example.com\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -43,13 +77,13 @@
 					}
 				},
 				{
-					"name": "Check Password",
+					"name": "Check Password (Get Token)",
 					"request": {
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"password\": \"password123\"\n}",
+							"raw": "{\n    \"password\": \"Password123!\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -57,6 +91,22 @@
 							}
 						},
 						"url": "{{BASE_URL}}/account/{{EMAIL}}/check-password"
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{BASE_URL}}/account/logout"
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{BASE_URL}}/account/refresh-token"
 					}
 				},
 				{
@@ -83,7 +133,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"token\": \"reset_token\",\n    \"newPassword\": \"newpassword123\"\n}",
+							"raw": "{\n    \"recoveryCode\": \"123456\",\n    \"newPassword\": \"NewPassword123!\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -94,20 +144,20 @@
 					}
 				},
 				{
-					"name": "Create Guest User",
+					"name": "Update User Details",
 					"request": {
-						"method": "POST",
+						"method": "PATCH",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"guest@example.com\",\n    \"firstName\": \"Guest\",\n    \"lastName\": \"User\"\n}",
+							"raw": "{\n    \"firstName\": \"Updated Name\",\n    \"phone\": \"+1234567890\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
 						},
-						"url": "{{BASE_URL}}/account/guest-user"
+						"url": "{{BASE_URL}}/account/{{userId}}/update-details"
 					}
 				},
 				{
@@ -119,20 +169,61 @@
 					}
 				},
 				{
-					"name": "Update User Details",
+					"name": "Delete User (Admin)",
 					"request": {
-						"method": "PATCH",
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/account/user/{{userId}}"
+					}
+				},
+				{
+					"name": "Create Traveler",
+					"request": {
+						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"firstName\": \"Updated Name\"\n}",
+							"raw": "{\n    \"firstName\": \"Traveler\",\n    \"lastName\": \"One\",\n    \"dateOfBirth\": \"1990-01-01\",\n    \"gender\": \"MALE\",\n    \"email\": \"traveler@example.com\",\n    \"userId\": \"{{userId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
 								}
 							}
 						},
-						"url": "{{BASE_URL}}/account/{{userId}}/update-details"
+						"url": "{{BASE_URL}}/account/traveler"
+					}
+				},
+				{
+					"name": "Get User Travelers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/account/travelers"
+					}
+				},
+				{
+					"name": "Create Guest User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"guest@example.com\",\n    \"firstName\": \"Guest\",\n    \"lastName\": \"User\",\n    \"phone\": \"+1987654321\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/guest-user"
+					}
+				},
+				{
+					"name": "Get Guest Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/account/guest-users"
 					}
 				},
 				{
@@ -142,32 +233,7 @@
 						"header": [],
 						"url": "{{BASE_URL}}/account/users"
 					}
-				},
-                {
-                    "name": "Create Traveler",
-                    "request": {
-                        "method": "POST",
-                        "header": [],
-                         "body": {
-							"mode": "raw",
-							"raw": "{}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-                        "url": "{{BASE_URL}}/account/traveler"
-                    }
-                },
-                {
-                    "name": "Get User Travelers",
-                    "request": {
-                        "method": "GET",
-                         "header": [],
-                        "url": "{{BASE_URL}}/account/travelers"
-                    }
-                }
+				}
 			]
 		},
 		{
