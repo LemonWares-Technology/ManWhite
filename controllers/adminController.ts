@@ -681,7 +681,7 @@ export async function deleteExclusion(
 }
 
 // Create Addons
-export const createFlightAddon = async (req: Request, res: Response) => {
+export const createFlightAddon:any = async (req: Request, res: Response) => {
   try {
     const { name, description, price } = req.body;
 
@@ -702,7 +702,7 @@ export const createFlightAddon = async (req: Request, res: Response) => {
 };
 
 // Get all admin-defined addons
-export const getAllFlightAddons = async (_req: Request, res: Response) => {
+export const getAllFlightAddons:any = async (_req: Request, res: Response) => {
   try {
     const addons = await prisma.flightAddon.findMany({
       where: {
@@ -719,7 +719,7 @@ export const getAllFlightAddons = async (_req: Request, res: Response) => {
 };
 
 // Update addon
-export const updateFlightAddon = async (req: Request, res: Response) => {
+export const updateFlightAddon:any = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { name, description, price, currency } = req.body;
 
@@ -737,7 +737,7 @@ export const updateFlightAddon = async (req: Request, res: Response) => {
 };
 
 // Delete addon
-export const deleteFlightAddon = async (req: Request, res: Response) => {
+export const deleteFlightAddon:any = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -749,7 +749,7 @@ export const deleteFlightAddon = async (req: Request, res: Response) => {
   }
 };
 
-export const addExistingAddonsToFlightOffer = async (
+export const addExistingAddonsToFlightOffer:any = async (
   req: Request,
   res: Response
 ): Promise<Response | any> => {
