@@ -14,9 +14,8 @@
   "description": "",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.824.0",
-    "@getbrevo/brevo": "^2.2.0",
-    "@prisma/client": "^6.4.1",
-    "@sendinblue/client": "^3.3.1",
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.2.0",
     "@types/axios": "^0.9.36",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.8",
@@ -51,15 +50,17 @@
     "passport": "^0.7.0",
     "passport-google-oauth2": "^0.2.0",
     "passport-google-oauth20": "^2.0.0",
-    "pg": "^8.16.0",
-    "prisma": "^6.4.1",
-    "sib-api-v3-sdk": "^8.5.0",
+    "pg": "^8.17.1",
     "streamifier": "^0.1.1",
     "stripe": "^18.2.1",
-    "uuidv4": "^6.2.13"
+    "uuidv4": "^6.2.13",
+    "zeptomail": "^7.0.0"
   },
   "devDependencies": {
+    "@types/node": "^25.0.9",
     "@types/nodemailer": "^6.4.17",
+    "prisma": "^7.2.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
 }

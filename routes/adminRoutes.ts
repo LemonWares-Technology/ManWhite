@@ -24,7 +24,7 @@ import {
   deleteUserByAdmin,
   addExistingAddonsToFlightOffer,
   removeAddonsFromFlightOffer,
-  sendEmailBookingProcess,
+  sendEmailBookingProcessController,
   getUserRole,
 } from "../controllers/adminController";
 
@@ -65,7 +65,7 @@ router.route("/delete-addons/:id").delete(deleteFlightAddon);
 // router.route("/send-email").post(sendEmailCampaign);
 
 // transactional emails
-router.route("/send-email").post(sendEmailBookingProcess);
+router.route("/send-email").post(sendEmailBookingProcessController);
 router.route("/get-role").get(getUserRole);
 
 export default router;

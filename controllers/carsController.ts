@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import { Request, Response } from "express";
 import axios from "axios";
 import getAmadeusToken from "../utils/getToken";
@@ -10,8 +10,6 @@ import {
 } from "../utils/helper";
 
 const baseURL: string = "https://test.api.amadeus.com";
-
-const prisma = new PrismaClient();
 
 export async function searchCars(req: Request, res: Response): Promise<any> {
   try {

@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import { Request, Response } from "express";
-
-const prisma = new PrismaClient();
 
 export async function createMargin(req: Request, res: Response): Promise<any> {
   try {

@@ -1,18 +1,17 @@
 import { Request, Response } from "express";
 import axios from "axios";
 import getAmadeusToken from "../utils/getToken";
-import { PrismaClient, Status } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { Status } from "@prisma/client";
 import {
   getConversionRate,
   mapTravelerToAmadeusFormat,
 } from "../utils/amadeusHelper";
 import { getCachedIataCode, getCachedLocationDetails } from "../utils/helper";
-import { sendBookingConfirmationEmail } from "../utils/brevo";
+import { sendBookingConfirmationEmails as sendBookingConfirmationEmail } from "../utils/zeptomail";
 import { getIataCodeDetails } from "../utils/iata";
 
 const baseURL: string = "https://test.api.amadeus.com";
-
-const prisma = new PrismaClient();
 
 // export async function searchFlights(req: Request, res: Response): Promise<any> {
 //   const {

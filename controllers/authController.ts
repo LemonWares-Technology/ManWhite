@@ -1,13 +1,11 @@
+import { prisma } from "../lib/prisma";
 import bcryptjs from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { addMinutes, isBefore } from "date-fns";
 import { mapTravelerToAmadeusFormat } from "../utils/amadeusHelper";
-import { sendVerificationEmail, sendVerificationToken } from "../utils/brevo";
-
-const prisma = new PrismaClient();
+import { sendVerificationEmail, sendVerificationToken } from "../utils/zeptomail";
 
 export const createAccount = async (
   req: Request,

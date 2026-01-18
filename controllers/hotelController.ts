@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import getAmadeusToken from "../utils/getToken";
 import axios from "axios";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import {
   extractAmadeusReference,
   extractCurrency,
@@ -10,8 +10,6 @@ import {
 } from "../utils/helper";
 
 const baseURL: string = "https://test.api.amadeus.com";
-
-const prisma = new PrismaClient();
 
 // Autocomplete Hotel
 export async function hotelAutocomplete(

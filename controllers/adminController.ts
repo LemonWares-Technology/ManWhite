@@ -1,19 +1,15 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { prisma } from "../lib/prisma";
+import { Role } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
-import { sendToken } from "../config/emailServices";
-import {
-  SendSmtpEmail,
-  TransactionalEmailsApi,
-  TransactionalEmailsApiApiKeys,
-} from "@getbrevo/brevo";
+import { sendEmailBookingProcess } from "../utils/adminEmailService";
+import { sendAgentActivationToken } from "../utils/zeptomail";
 import env from "dotenv";
 env.config();
 
 const ADMIN_SECRET = process.env.JWT! || "code";
-const prisma = new PrismaClient();
 
 export async function createAdminAccount(
   req: Request,
@@ -323,7 +319,7 @@ export async function verifyAgent(req: Request, res: Response): Promise<any> {
       },
     });
 
-    await sendToken(updatedAgent);
+    await sendAgentActivationToken(updatedAgent);
 
     return res.status(200).json({
       message: `Agent verified, notification sent to agent's inbox`,
@@ -949,38 +945,24 @@ export const removeAddonsFromFlightOffer = async (
   }
 };
 
-export async function sendEmailBookingProcess(
+export async function sendEmailBookingProcessController(
   req: Request,
   res: Response
 ): Promise<any> {
   try {
     const { adminEmail, customerName, subject, customerEmail, text } = req.body;
 
-    // Instantiate the API client
-    const apiInstance = new TransactionalEmailsApi();
-
-    // Set the API key using the provided method
-    apiInstance.setApiKey(
-      TransactionalEmailsApiApiKeys.apiKey,
-      process.env.BREVO_API_KEY!
-    );
-
-    // Create the email payload
-    const sendSmtpEmail = new SendSmtpEmail();
-    sendSmtpEmail.sender = {
-      name: "Manwhit Aroes",
-      email: adminEmail || "mails@manwhit.com",
-    };
-    sendSmtpEmail.to = [{ email: customerEmail, name: customerName }];
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = `<html><body><p>${text}</p></body></html>`;
-
-    // Send the transactional email
-    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const result = await sendEmailBookingProcess({
+      adminEmail,
+      customerName,
+      subject,
+      customerEmail,
+      text,
+    });
 
     return res
       .status(200)
-      .json({ message: "Email sent successfully", data: response });
+      .json({ message: "Email sent successfully", data: result });
   } catch (error: any) {
     console.error("Error:", error);
     return res.status(500).json({ message: "Internal server error" });

@@ -1,9 +1,6 @@
-import { PrismaClient } from "@prisma/client";
-import axios from "axios";
+import { prisma } from "../lib/prisma";
 import { Request, Response } from "express";
 import getAmadeusToken from "../utils/getToken";
-
-const prisma = new PrismaClient();
 
 const baseURL: string = `https://test.api.amadeus.com`;
 

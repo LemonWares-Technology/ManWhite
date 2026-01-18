@@ -5,13 +5,11 @@ import env from "dotenv";
 import {
   sendPaymentSuccessEmail,
   sendPaymentSuccessEmailWithRetry,
-} from "../utils/brevo";
-import { PrismaClient } from "@prisma/client";
+} from "../utils/zeptomail";
+import { prisma } from "../lib/prisma";
 env.config();
 
-const prisma = new PrismaClient();
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTER_SECRET!;
 const FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTER_PUBLIC!;

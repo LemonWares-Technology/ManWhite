@@ -1,0 +1,779 @@
+{
+	"info": {
+		"name": "ManWhite API (Complete)",
+		"description": "Comprehensive Postman collection for ManWhite API covering Auth, Flights, Hotels, Cars, Tours, Booking, Payment, Admin, and Margin routes.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Create Account",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/"
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\",\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/login"
+					}
+				},
+				{
+					"name": "Check Password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/{{EMAIL}}/check-password"
+					}
+				},
+				{
+					"name": "Request Password Reset",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"test@example.com\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/request-reset-password"
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"reset_token\",\n    \"newPassword\": \"newpassword123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/reset-password"
+					}
+				},
+				{
+					"name": "Create Guest User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"guest@example.com\",\n    \"firstName\": \"Guest\",\n    \"lastName\": \"User\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/guest-user"
+					}
+				},
+				{
+					"name": "Get User Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/account/{{userId}}/get-details"
+					}
+				},
+				{
+					"name": "Update User Details",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"Updated Name\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/account/{{userId}}/update-details"
+					}
+				},
+				{
+					"name": "Get All Accounts (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/account/users"
+					}
+				},
+                {
+                    "name": "Create Traveler",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                         "body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+                        "url": "{{BASE_URL}}/account/traveler"
+                    }
+                },
+                {
+                    "name": "Get User Travelers",
+                    "request": {
+                        "method": "GET",
+                         "header": [],
+                        "url": "{{BASE_URL}}/account/travelers"
+                    }
+                }
+			]
+		},
+		{
+			"name": "Google Auth",
+			"item": [
+				{
+					"name": "Google Login",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/auth/google"
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/auth/current-user"
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/auth/logout"
+					}
+				}
+			]
+		},
+		{
+			"name": "Flights",
+			"item": [
+				{
+					"name": "Search Flights",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/flight/search?originLocationCode=LON&destinationLocationCode=NYC&departureDate=2025-06-01&adults=1",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"flight",
+								"search"
+							],
+							"query": [
+								{
+									"key": "originLocationCode",
+									"value": "LON"
+								},
+								{
+									"key": "destinationLocationCode",
+									"value": "NYC"
+								},
+								{
+									"key": "departureDate",
+									"value": "2025-06-01"
+								},
+								{
+									"key": "adults",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+                {
+					"name": "Search Flight Price",
+					"request": {
+						"method": "POST",
+						"header": [],
+                        "body": {
+							"mode": "raw",
+							"raw": "{ \"flightOffer\": {} }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/search-flight-price"
+					}
+				},
+				{
+					"name": "Get Flight Offers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/get-flight-offers"
+					}
+				},
+				{
+					"name": "Get Flight Offer By ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/get-flight-offer/{{flightOfferId}}"
+					}
+				},
+				{
+					"name": "Save Flight Offer",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/save-flight-offer"
+					}
+				},
+				{
+					"name": "Book Flight",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/book-flight"
+					}
+				},
+                {
+					"name": "Book Guest Flight",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/book-guest-flight"
+					}
+				},
+				{
+					"name": "Get Flight Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/get-flight-details/{{referenceId}}"
+					}
+				},
+                {
+					"name": "Airport Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/airport-details?keyword=LHR"
+					}
+				},
+                {
+					"name": "Airline Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/airline-details?airlineCode=BA"
+					}
+				}
+			]
+		},
+		{
+			"name": "Hotels",
+			"item": [
+				{
+					"name": "Search Hotels (By City)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/hotel/search-hotel?cityCode=PAR",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"hotel",
+								"search-hotel"
+							],
+							"query": [
+								{
+									"key": "cityCode",
+									"value": "PAR"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Hotel Autocomplete",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/hotel/hotel-autocomplete?keyword=PAR",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"hotel",
+								"hotel-autocomplete"
+							],
+							"query": [
+								{
+									"key": "keyword",
+									"value": "PAR"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Hotel Offer Search",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/hotel/hotel-offer-search?hotelIds=XXX&checkInDate=2025-06-01&checkOutDate=2025-06-05",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"hotel",
+								"hotel-offer-search"
+							],
+                            "query": [
+                                { "key": "hotelIds", "value": "XXX" },
+                                { "key": "checkInDate", "value": "2025-06-01" },
+                                { "key": "checkOutDate", "value": "2025-06-05" }
+                            ]
+						}
+					}
+				},
+				{
+					"name": "Hotels With Offers (Combined)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/hotel/hotels-with-offers?cityCode=PAR&checkInDate=2025-06-01&checkOutDate=2025-06-05"
+					}
+				},
+				{
+					"name": "Get Offer Pricing",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/hotel/hotel-offer-search/{{offerId}}"
+					}
+				},
+				{
+					"name": "Book Hotel",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/hotel/book-hotel"
+					}
+				}
+			]
+		},
+        {
+			"name": "Booking & Cart",
+			"item": [
+				{
+					"name": "Get User Cart",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/booking/cart/{{userId}}"
+					}
+				},
+                {
+					"name": "Add Flight to Cart",
+					"request": {
+						"method": "POST",
+						"header": [],
+                         "body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/booking/add-to-cart/{{userId}}"
+					}
+				},
+                {
+					"name": "Remove From Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/booking/remove-from-cart/{{cartId}}"
+					}
+				},
+                {
+					"name": "Delete Entire Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/booking/delete-cart/{{userId}}"
+					}
+				},
+                {
+					"name": "Book Flight (Transaction)",
+					"request": {
+						"method": "POST",
+						"header": [],
+                         "body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/booking/book-flight/{{transactionId}}"
+					}
+				},
+                 {
+					"name": "Delete Booking",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/booking/delete-booking/{{bookingId}}"
+					}
+				}
+			]
+		},
+		{
+			"name": "Payment",
+			"item": [
+				{
+					"name": "Initialize Payment (Flutterwave)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 1000,\n    \"email\": \"test@example.com\",\n    \"currency\": \"NGN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/payment/initialize"
+					}
+				},
+				{
+					"name": "Verify Payment (Flutterwave)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+                            "raw": "{{BASE_URL}}/payment/verify?tx_ref=REF123",
+                            "query": [
+                                {"key": "tx_ref", "value": "REF123"}
+                            ]
+                        }
+					}
+				},
+				{
+					"name": "Initialize Stripe Payment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 1000,\n    \"email\": \"test@example.com\",\n    \"currency\": \"USD\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/payment/stripe/initialize"
+					}
+				},
+                 {
+					"name": "Verify Stripe Payment",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/payment/stripe/verify?payment_intent=pi_123"
+					}
+				}
+			]
+		},
+        {
+			"name": "Cars",
+			"item": [
+				{
+					"name": "Search Cars / Transfers",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"data\": {\n    \"startLocationCode\": \"LHR\",\n    \"endAddressLine\": \"London Eye, London\",\n    \"endCityName\": \"London\",\n    \"endCountryCode\": \"GB\",\n    \"startDateTime\": \"2025-06-01T10:00:00\",\n    \"passengers\": 2,\n    \"passengerCharacteristics\": [ { \"passengerTypeCode\": \"ADT\" } ]\n  }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/cars/search-cars"
+					}
+				}
+			]
+		},
+        {
+			"name": "Tours",
+			"item": [
+				{
+					"name": "Get Tours By City",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/tours/get-tours?cityName=Paris"
+					}
+				},
+				{
+					"name": "Get Tour Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/tours/get-tours/{{activityId}}"
+					}
+				}
+			]
+		},
+        {
+			"name": "Margin (Admin)",
+			"item": [
+				{
+					"name": "Get All Margins",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/margin/get-margins"
+					}
+				},
+				{
+					"name": "Create Margin",
+					"request": {
+						"method": "POST",
+						"header": [],
+                        "body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{BASE_URL}}/margin/create-margin"
+					}
+				},
+                {
+					"name": "Update Margin",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+                        "body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": "{{BASE_URL}}/margin/update-margin"
+					}
+				},
+                {
+					"name": "Delete Margin",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/margin/delete-margin"
+					}
+				}
+			]
+		},
+		{
+			"name": "Admin Dashboard",
+			"item": [
+				{
+					"name": "Create Admin",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@manwhite.com\",\n    \"password\": \"admin123\",\n    \"role\": \"ADMIN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/admin/create"
+					}
+				},
+				{
+					"name": "Login Admin",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@manwhite.com\",\n    \"password\": \"admin123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/admin/login"
+					}
+				},
+                {
+					"name": "Get Booking Analytics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/admin/get-bookings-analytics"
+					}
+				},
+                {
+					"name": "Get All Bookings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/admin/get-bookings"
+					}
+				},
+                {
+					"name": "Create Agent",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{BASE_URL}}/admin/create-agent/{{adminId}}"
+					}
+				},
+                {
+					"name": "Create User (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{BASE_URL}}/admin/create-user/{{adminId}}"
+					}
+				},
+                {
+                    "name": "Send Transactional Email",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                         "body": {
+							"mode": "raw",
+							"raw": "{\n \"email\": \"user@example.com\",\n \"subject\": \"Test Email\",\n \"message\": \"Hello world\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+                        "url": "{{BASE_URL}}/admin/send-email"
+                    }
+                }
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+        {
+            "key": "userId",
+            "value": "ENTER_USER_ID",
+            "type": "string"
+        },
+        {
+            "key": "EMAIL",
+            "value": "test@example.com",
+             "type": "string"
+        }
+	]
+}

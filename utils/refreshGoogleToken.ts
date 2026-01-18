@@ -1,9 +1,8 @@
 import { OAuth2Client } from "google-auth-library";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../lib/prisma";
 import dotenv from "dotenv";
 
 dotenv.config();
-const prisma = new PrismaClient();
 
 const client: any = new OAuth2Client(
     process.env.GOOGLE_CLIENT_ID!,
