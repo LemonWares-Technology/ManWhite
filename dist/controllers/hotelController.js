@@ -22,6 +22,7 @@ exports.bookHotel = bookHotel;
 const getToken_1 = __importDefault(require("../utils/getToken"));
 const axios_1 = __importDefault(require("axios"));
 const prisma_1 = require("../lib/prisma");
+const zeptomail_1 = require("../utils/zeptomail");
 const apiResponse_1 = require("../utils/apiResponse");
 const helper_1 = require("../utils/helper");
 const baseURL = "https://test.api.amadeus.com";
@@ -887,6 +888,26 @@ function bookHotel(req, res) {
                     travelers: true,
                 },
             });
+            // Send confirmation email
+            if (completeBooking) {
+                const emailRecipient = completeBooking.user || completeBooking.guestUser;
+                if (emailRecipient && emailRecipient.email) {
+                    yield (0, zeptomail_1.sendHotelBookingConfirmationEmail)({
+                        hotelName: data.hotelName,
+                        checkInDate: data.checkInDate,
+                        checkOutDate: data.checkOutDate,
+                        guests: data.guests,
+                        totalAmount: booking.totalAmount,
+                        currency: booking.currency,
+                        bookingId: booking.referenceId,
+                    }, {
+                        email: emailRecipient.email,
+                        name: emailRecipient.name ||
+                            `${emailRecipient.firstName || ''} ${emailRecipient.lastName || ''}`.trim() ||
+                            "Guest",
+                    });
+                }
+            }
             // Return success response
             return (0, apiResponse_1.sendSuccess)(res, "Hotel booking completed successfully", {
                 booking: {

@@ -19,6 +19,7 @@ const axios_1 = __importDefault(require("axios"));
 const getToken_1 = __importDefault(require("../utils/getToken"));
 const helper_1 = require("../utils/helper");
 const apiResponse_1 = require("../utils/apiResponse");
+const zeptomail_1 = require("../utils/zeptomail");
 const baseURL = "https://test.api.amadeus.com";
 function searchCars(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -251,7 +252,7 @@ function searchCars(req, res) {
 // Rename your existing function to bookCarTransfer
 function bookCarTransfer(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
         try {
             const { data } = req.body;
             // Get user context from request (adjust based on your auth implementation)
@@ -439,6 +440,26 @@ function bookCarTransfer(req, res) {
                 });
                 return completeBooking;
             }));
+            // Send confirmation email
+            if (result) {
+                const emailRecipient = result.user || result.guestUser;
+                if (emailRecipient && emailRecipient.email) {
+                    yield (0, zeptomail_1.sendCarBookingConfirmationEmail)({
+                        carModel: ((_l = result.bookingDetails) === null || _l === void 0 ? void 0 : _l.carModel) || "Vehicle",
+                        pickupLocation: data.startLocationCode,
+                        dropoffLocation: data.endAddressLine,
+                        pickupDate: data.startDateTime,
+                        totalAmount: result.totalAmount,
+                        currency: result.currency,
+                        bookingId: result.referenceId,
+                    }, {
+                        email: emailRecipient.email,
+                        name: emailRecipient.name ||
+                            `${emailRecipient.firstName || ''} ${emailRecipient.lastName || ''}`.trim() ||
+                            "Customer",
+                    });
+                }
+            }
             // Return success response
             return (0, apiResponse_1.sendSuccess)(res, userId
                 ? "Car transfer booking completed successfully and cart cleared"
@@ -460,8 +481,8 @@ function bookCarTransfer(req, res) {
             }, 201);
         }
         catch (error) {
-            console.error("Error booking car transfer:", ((_l = error.response) === null || _l === void 0 ? void 0 : _l.data) || error.message);
-            if ((_m = error.response) === null || _m === void 0 ? void 0 : _m.data) {
+            console.error("Error booking car transfer:", ((_m = error.response) === null || _m === void 0 ? void 0 : _m.data) || error.message);
+            if ((_o = error.response) === null || _o === void 0 ? void 0 : _o.data) {
                 return (0, apiResponse_1.sendError)(res, error.response.data.error_description || error.response.data.message || "Car transfer booking failed", error.response.status || 502, error.response.data);
             }
             if (error.code === "P2002") {
