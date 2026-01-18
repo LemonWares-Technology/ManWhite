@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{title}}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Red Hat Display', Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+        color: #333333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        overflow: hidden;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .header {
+        background-color: #D32F2F; /* Manwhit Red */
+        padding: 30px 20px;
+        text-align: center;
+      }
+      .header h1 {
+        color: #ffffff;
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .footer {
+        background-color: #f9f9f9;
+        padding: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #999999;
+        border-top: 1px solid #eeeeee;
+      }
+      .button {
+        display: inline-block;
+        background-color: #D32F2F;
+        color: #ffffff !important;
+        padding: 12px 30px;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: 700;
+        margin-top: 20px;
+      }
+      .info-box {
+        background-color: #f8f9fa;
+        border-left: 4px solid #D32F2F;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      strong {
+        color: #000000;
+        font-weight: 700;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      td {
+        padding: 10px 0;
+        border-bottom: 1px solid #eeeeee;
+      }
+      td:first-child {
+        color: #666666;
+        width: 40%;
+      }
+      td:last-child {
+        font-weight: 500;
+        color: #000000;
+        width: 60%;
+      }
+      /* Utilities */
+      .text-center { text-align: center; }
+      .mb-20 { margin-bottom: 20px; }
+      .mt-20 { margin-top: 20px; }
+      .success-icon {
+        font-size: 48px;
+        color: #28a745;
+        display: block;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Manwhit Areos</h1>
+      </div>
+      <div class="content">
+        {{{body}}}
+      </div>
+      <div class="footer">
+        <p>Manwhit Areos, Inc.<br>2145 Michigan Avenue, Santa Monica CA 90404, United States.</p>
+        <p>&copy; {{year}} Manwhit. All rights reserved.</p>
+        <p>This is an automated email. Please do not reply.</p>
+      </div>
+    </div>
+  </body>
+</html>

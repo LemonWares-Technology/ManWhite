@@ -9,6 +9,7 @@ import {
   generateCarBookingReference,
 } from "../utils/helper";
 import { sendSuccess, sendError } from "../utils/apiResponse";
+import { sendCarBookingConfirmationEmail } from "../utils/zeptomail";
 
 const baseURL: string = "https://test.api.amadeus.com";
 
@@ -502,6 +503,30 @@ export async function bookCarTransfer(
 
       return completeBooking;
     });
+
+    // Send confirmation email
+    if (result) {
+      const emailRecipient = result.user || result.guestUser;
+      if (emailRecipient && emailRecipient.email) {
+        await sendCarBookingConfirmationEmail(
+          {
+            carModel: (result.bookingDetails as any)?.carModel || "Vehicle",
+            pickupLocation: data.startLocationCode,
+            dropoffLocation: data.endAddressLine,
+            pickupDate: data.startDateTime,
+            totalAmount: result.totalAmount,
+            currency: result.currency,
+            bookingId: result.referenceId,
+          },
+          {
+            email: emailRecipient.email,
+            name: (emailRecipient as any).name || 
+                  `${(emailRecipient as any).firstName || ''} ${(emailRecipient as any).lastName || ''}`.trim() || 
+                  "Customer",
+          }
+        );
+      }
+    }
 
     // Return success response
     return sendSuccess(res, userId

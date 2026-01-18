@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import getAmadeusToken from "../utils/getToken";
 import axios from "axios";
 import { prisma } from "../lib/prisma";
+import { sendHotelBookingConfirmationEmail } from "../utils/zeptomail";
 import { sendSuccess, sendError } from "../utils/apiResponse";
 import {
   extractAmadeusReference,
@@ -1033,6 +1034,30 @@ export async function bookHotel(req: Request, res: Response): Promise<any> {
         travelers: true,
       },
     });
+
+    // Send confirmation email
+    if (completeBooking) {
+      const emailRecipient = completeBooking.user || completeBooking.guestUser;
+      if (emailRecipient && emailRecipient.email) {
+        await sendHotelBookingConfirmationEmail(
+          {
+            hotelName: data.hotelName,
+            checkInDate: data.checkInDate,
+            checkOutDate: data.checkOutDate,
+            guests: data.guests,
+            totalAmount: booking.totalAmount,
+            currency: booking.currency,
+            bookingId: booking.referenceId,
+          },
+          {
+            email: emailRecipient.email,
+            name: (emailRecipient as any).name || 
+                  `${(emailRecipient as any).firstName || ''} ${(emailRecipient as any).lastName || ''}`.trim() || 
+                  "Guest",
+          }
+        );
+      }
+    }
 
     // Return success response
     return sendSuccess(res, "Hotel booking completed successfully", {
