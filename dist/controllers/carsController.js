@@ -14,42 +14,34 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchCars = searchCars;
 exports.bookCarTransfer = bookCarTransfer;
-const client_1 = require("@prisma/client");
+const prisma_1 = require("../lib/prisma");
 const axios_1 = __importDefault(require("axios"));
 const getToken_1 = __importDefault(require("../utils/getToken"));
 const helper_1 = require("../utils/helper");
+const apiResponse_1 = require("../utils/apiResponse");
 const baseURL = "https://test.api.amadeus.com";
-const prisma = new client_1.PrismaClient();
 function searchCars(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
         try {
             const { data } = req.body;
             // Get user context from request (adjust based on your auth implementation)
-            const currentUserId = ((_a = req.User) === null || _a === void 0 ? void 0 : _a.id) || null; // Assuming you have user in req from auth middleware
+            const currentUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) || null;
             if (!data) {
-                return res.status(400).json({
-                    error: "Missing booking data",
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing booking data", 400);
             }
             // Validate required fields for car booking
             if (!data.startLocationCode ||
                 !data.endAddressLine ||
                 !data.startDateTime) {
-                return res.status(400).json({
-                    error: "Required fields missing: startLocationCode, endAddressLine, and startDateTime are required",
-                });
+                return (0, apiResponse_1.sendError)(res, "Required fields missing: startLocationCode, endAddressLine, and startDateTime are required", 400);
             }
             if (!data.passengers || data.passengers < 1) {
-                return res.status(400).json({
-                    error: "At least one passenger is required",
-                });
+                return (0, apiResponse_1.sendError)(res, "At least one passenger is required", 400);
             }
             if (!data.passengerCharacteristics ||
                 data.passengerCharacteristics.length === 0) {
-                return res.status(400).json({
-                    error: "Passenger characteristics are required",
-                });
+                return (0, apiResponse_1.sendError)(res, "Passenger characteristics are required", 400);
             }
             // Get Amadeus access token
             const token = yield (0, getToken_1.default)();
@@ -88,7 +80,7 @@ function searchCars(req, res) {
             let guestUserId = null;
             // If we have a current user and their email matches, use their ID
             if (currentUserId) {
-                const currentUser = yield prisma.user.findUnique({
+                const currentUser = yield prisma_1.prisma.user.findUnique({
                     where: { id: currentUserId },
                 });
                 if (currentUser &&
@@ -98,7 +90,7 @@ function searchCars(req, res) {
             }
             // If no user match, try to find existing user by email
             if (!userId && ((_d = data.contactInfo) === null || _d === void 0 ? void 0 : _d.email)) {
-                const existingUser = yield prisma.user.findUnique({
+                const existingUser = yield prisma_1.prisma.user.findUnique({
                     where: { email: contactEmail },
                 });
                 if (existingUser) {
@@ -106,7 +98,7 @@ function searchCars(req, res) {
                 }
                 else {
                     // Create or update guest user
-                    const guestUser = yield prisma.guestUser.upsert({
+                    const guestUser = yield prisma_1.prisma.guestUser.upsert({
                         where: { email: contactEmail },
                         update: {
                             firstName: ((_e = data.contactInfo) === null || _e === void 0 ? void 0 : _e.firstName) || "Guest",
@@ -132,7 +124,7 @@ function searchCars(req, res) {
                 }
             }
             // Use transaction to ensure data consistency
-            const result = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
+            const result = yield prisma_1.prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
                 // 1. Clear user's cart if they are logged in
                 if (userId) {
                     yield tx.flightCart.deleteMany({
@@ -218,11 +210,9 @@ function searchCars(req, res) {
                 return completeBooking;
             }));
             // Return success response
-            return res.status(201).json({
-                success: true,
-                message: userId
-                    ? "Car transfer booking completed successfully and cart cleared"
-                    : "Car transfer booking completed successfully",
+            return (0, apiResponse_1.sendSuccess)(res, userId
+                ? "Car transfer booking completed successfully and cart cleared"
+                : "Car transfer booking completed successfully", {
                 booking: {
                     id: result === null || result === void 0 ? void 0 : result.id,
                     referenceId: result === null || result === void 0 ? void 0 : result.referenceId,
@@ -236,37 +226,25 @@ function searchCars(req, res) {
                     travelers: result === null || result === void 0 ? void 0 : result.travelers,
                 },
                 amadeusResponse: amadeusResponse.data,
-                cartCleared: userId ? true : false, // Indicate if cart was cleared
-            });
+                cartCleared: userId ? true : false,
+            }, 201);
         }
         catch (error) {
             console.error("Error booking car transfer:", ((_l = error.response) === null || _l === void 0 ? void 0 : _l.data) || error.message);
             // If it's an Amadeus API error, return specific error
             if ((_m = error.response) === null || _m === void 0 ? void 0 : _m.data) {
-                return res.status(error.response.status || 500).json({
-                    error: "Amadeus API Error",
-                    details: error.response.data,
-                    message: error.response.data.error_description ||
-                        error.response.data.message ||
-                        "Car transfer booking failed",
-                });
+                return (0, apiResponse_1.sendError)(res, error.response.data.error_description || error.response.data.message || "Car transfer booking failed", error.response.status || 502, error.response.data);
             }
             // If it's a database error
             if (error.code === "P2002") {
-                return res.status(409).json({
-                    error: "Booking reference already exists",
-                    message: "Please try again",
-                });
+                return (0, apiResponse_1.sendError)(res, "Booking reference already exists", 409);
             }
             // Generic error
-            return res.status(500).json({
-                error: "Internal server error",
-                message: error.message || "An unexpected error occurred",
-            });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
         finally {
             // Clean up Prisma connection
-            yield prisma.$disconnect();
+            yield prisma_1.prisma.$disconnect();
         }
     });
 }
@@ -277,31 +255,23 @@ function bookCarTransfer(req, res) {
         try {
             const { data } = req.body;
             // Get user context from request (adjust based on your auth implementation)
-            const currentUserId = ((_a = req.User) === null || _a === void 0 ? void 0 : _a.id) || null;
+            const currentUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) || null;
             if (!data) {
-                return res.status(400).json({
-                    error: "Missing booking data",
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing booking data", 400);
             }
             // Validate required fields for car booking
             if (!data.offerId ||
                 !data.startLocationCode ||
                 !data.endAddressLine ||
                 !data.startDateTime) {
-                return res.status(400).json({
-                    error: "Required fields missing: offerId, startLocationCode, endAddressLine, and startDateTime are required",
-                });
+                return (0, apiResponse_1.sendError)(res, "Required fields missing: offerId, startLocationCode, endAddressLine, and startDateTime are required", 400);
             }
             if (!data.passengers || data.passengers < 1) {
-                return res.status(400).json({
-                    error: "At least one passenger is required",
-                });
+                return (0, apiResponse_1.sendError)(res, "At least one passenger is required", 400);
             }
             if (!data.passengerCharacteristics ||
                 data.passengerCharacteristics.length === 0) {
-                return res.status(400).json({
-                    error: "Passenger characteristics are required",
-                });
+                return (0, apiResponse_1.sendError)(res, "Passenger characteristics are required", 400);
             }
             // Get Amadeus access token
             const token = yield (0, getToken_1.default)();
@@ -340,7 +310,7 @@ function bookCarTransfer(req, res) {
             let guestUserId = null;
             // If we have a current user and their email matches, use their ID
             if (currentUserId) {
-                const currentUser = yield prisma.user.findUnique({
+                const currentUser = yield prisma_1.prisma.user.findUnique({
                     where: { id: currentUserId },
                 });
                 if (currentUser &&
@@ -350,7 +320,7 @@ function bookCarTransfer(req, res) {
             }
             // If no user match, try to find existing user by email
             if (!userId && ((_d = data.contactInfo) === null || _d === void 0 ? void 0 : _d.email)) {
-                const existingUser = yield prisma.user.findUnique({
+                const existingUser = yield prisma_1.prisma.user.findUnique({
                     where: { email: contactEmail },
                 });
                 if (existingUser) {
@@ -358,7 +328,7 @@ function bookCarTransfer(req, res) {
                 }
                 else {
                     // Create or update guest user
-                    const guestUser = yield prisma.guestUser.upsert({
+                    const guestUser = yield prisma_1.prisma.guestUser.upsert({
                         where: { email: contactEmail },
                         update: {
                             firstName: ((_e = data.contactInfo) === null || _e === void 0 ? void 0 : _e.firstName) || "Guest",
@@ -384,7 +354,7 @@ function bookCarTransfer(req, res) {
                 }
             }
             // Use transaction to ensure data consistency
-            const result = yield prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
+            const result = yield prisma_1.prisma.$transaction((tx) => __awaiter(this, void 0, void 0, function* () {
                 // 1. Clear user's cart if they are logged in
                 if (userId) {
                     yield tx.flightCart.deleteMany({
@@ -470,11 +440,9 @@ function bookCarTransfer(req, res) {
                 return completeBooking;
             }));
             // Return success response
-            return res.status(201).json({
-                success: true,
-                message: userId
-                    ? "Car transfer booking completed successfully and cart cleared"
-                    : "Car transfer booking completed successfully",
+            return (0, apiResponse_1.sendSuccess)(res, userId
+                ? "Car transfer booking completed successfully and cart cleared"
+                : "Car transfer booking completed successfully", {
                 booking: {
                     id: result === null || result === void 0 ? void 0 : result.id,
                     referenceId: result === null || result === void 0 ? void 0 : result.referenceId,
@@ -489,32 +457,17 @@ function bookCarTransfer(req, res) {
                 },
                 amadeusResponse: amadeusResponse.data,
                 cartCleared: userId ? true : false,
-            });
+            }, 201);
         }
         catch (error) {
             console.error("Error booking car transfer:", ((_l = error.response) === null || _l === void 0 ? void 0 : _l.data) || error.message);
             if ((_m = error.response) === null || _m === void 0 ? void 0 : _m.data) {
-                return res.status(error.response.status || 500).json({
-                    error: "Amadeus API Error",
-                    details: error.response.data,
-                    message: error.response.data.error_description ||
-                        error.response.data.message ||
-                        "Car transfer booking failed",
-                });
+                return (0, apiResponse_1.sendError)(res, error.response.data.error_description || error.response.data.message || "Car transfer booking failed", error.response.status || 502, error.response.data);
             }
             if (error.code === "P2002") {
-                return res.status(409).json({
-                    error: "Booking reference already exists",
-                    message: "Please try again",
-                });
+                return (0, apiResponse_1.sendError)(res, "Booking reference already exists", 409);
             }
-            return res.status(500).json({
-                error: "Internal server error",
-                message: error.message || "An unexpected error occurred",
-            });
-        }
-        finally {
-            yield prisma.$disconnect();
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }

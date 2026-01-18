@@ -7,6 +7,7 @@ import bcryptjs from "bcryptjs";
 import { sendEmailBookingProcess } from "../utils/adminEmailService";
 import { sendAgentActivationToken } from "../utils/zeptomail";
 import { sendSuccess, sendError } from "../utils/apiResponse";
+import { generateTokens, setTokenCookies } from "../utils/authUtils";
 import env from "dotenv";
 env.config();
 
@@ -67,16 +68,11 @@ export async function adminLogin(req: Request, res: Response): Promise<any> {
       return sendError(res, "Invalid admin token", 401);
     }
 
-    const token = jwt.sign(
-      {
-        userId: admin.id,
-        role: admin.role,
-      },
-      ADMIN_SECRET,
-      { expiresIn: "4h" }
-    );
+    const { accessToken } = generateTokens(admin);
 
-    return sendSuccess(res, "Admin logged in successfully", { token, data: admin });
+    setTokenCookies(res, accessToken);
+
+    return sendSuccess(res, "Admin logged in successfully", { token: accessToken, data: admin });
   } catch (error) {
     console.error(`Admin login error ${error}`);
     return sendError(res, "Internal server error", 500, error);
@@ -95,9 +91,7 @@ export async function createAgent(req: Request, res: Response): Promise<any> {
     // Check if user with email already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res
-        .status(409)
-        .json({ error: "User with this email address already exists" });
+      return sendError(res, "User with this email address already exists", 409);
     }
 
     // Check if requester is admin
@@ -193,7 +187,7 @@ export async function updateUserByAdmin(
       where: { id: userId },
     });
     if (!existingUser) {
-      return res.status(404).json({ error: "User not found" });
+      return sendError(res, "User not found", 404);
     }
 
     const updatedUser = await prisma.user.update({
@@ -356,13 +350,11 @@ export async function loginAgent(req: Request, res: Response): Promise<any> {
       return sendError(res, "Invalid password", 400);
     }
 
-    const token = jwt.sign(
-      { userId: agent.id, role: agent.role },
-      ADMIN_SECRET || "code",
-      { expiresIn: "1h" }
-    );
+    const { accessToken } = generateTokens(agent);
 
-    return sendSuccess(res, "Login successful", { token, data: agent });
+    setTokenCookies(res, accessToken);
+
+    return sendSuccess(res, "Login successful", { token: accessToken, data: agent });
   } catch (error: any) {
     console.error(`Error logging in agent`, error);
     return sendError(res, "Internal server error", 500, error);
@@ -758,10 +750,10 @@ export const addExistingAddonsToFlightOffer:any = async (
     const { addonIds } = req.body; // Expecting addonIds: string[]
 
     if (!flightOfferId) {
-      return res.status(400).json({ message: "Flight offer ID is required" });
+      return sendError(res, "Flight offer ID is required", 400);
     }
     if (!Array.isArray(addonIds) || addonIds.length === 0) {
-      return res.status(400).json({ message: "addonIds array is required" });
+      return sendError(res, "addonIds array is required", 400);
     }
 
     // Verify flight offer exists
@@ -769,7 +761,7 @@ export const addExistingAddonsToFlightOffer:any = async (
       where: { id: flightOfferId },
     });
     if (!flightOffer) {
-      return res.status(404).json({ message: "Flight offer not found" });
+      return sendError(res, "Flight offer not found", 404);
     }
 
     // Verify all addonIds exist
@@ -803,10 +795,10 @@ export const removeAddonsFromFlightOffer = async (
     const { addonIds } = req.body;
 
     if (!flightOfferId) {
-      return res.status(400).json({ message: "Flight offer ID is required" });
+      return sendError(res, "Flight offer ID is required", 400);
     }
     if (!Array.isArray(addonIds) || addonIds.length === 0) {
-      return res.status(400).json({ message: "addonIds array is required" });
+      return sendError(res, "addonIds array is required", 400);
     }
 
     // Verify flight offer exists
@@ -814,7 +806,7 @@ export const removeAddonsFromFlightOffer = async (
       where: { id: flightOfferId },
     });
     if (!flightOffer) {
-      return res.status(404).json({ message: "Flight offer not found" });
+      return sendError(res, "Flight offer not found", 404);
     }
 
     // Verify all addonIds are currently linked to this flight offer

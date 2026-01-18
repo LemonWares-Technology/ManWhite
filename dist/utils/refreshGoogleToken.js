@@ -14,14 +14,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.refreshGoogleToken = refreshGoogleToken;
 const google_auth_library_1 = require("google-auth-library");
-const client_1 = require("@prisma/client");
+const prisma_1 = require("../lib/prisma");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-const prisma = new client_1.PrismaClient();
 const client = new google_auth_library_1.OAuth2Client(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
 function refreshGoogleToken(userId) {
     return __awaiter(this, void 0, void 0, function* () {
-        const user = yield prisma.user.findUnique({
+        const user = yield prisma_1.prisma.user.findUnique({
             where: { id: userId },
             select: { refreshToken: true },
         });
@@ -33,7 +32,7 @@ function refreshGoogleToken(userId) {
             throw new Error("Failed to refresh access token");
         }
         // Update new refreshToken if Google provides a new one
-        yield prisma.user.update({
+        yield prisma_1.prisma.user.update({
             where: { id: userId },
             data: { refreshToken: credentials.refresh_token || user.refreshToken },
         });

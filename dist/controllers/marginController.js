@@ -14,47 +14,43 @@ exports.getAllMargins = getAllMargins;
 exports.getMarginById = getMarginById;
 exports.updateMargin = updateMargin;
 exports.deleteMargin = deleteMargin;
-const client_1 = require("@prisma/client");
-const prisma = new client_1.PrismaClient();
+const prisma_1 = require("../lib/prisma");
+const apiResponse_1 = require("../utils/apiResponse");
 function createMargin(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Check if margin already exists
-            const existingMargin = yield prisma.marginSetting.findFirst();
+            const existingMargin = yield prisma_1.prisma.marginSetting.findFirst();
             if (existingMargin) {
-                return res.status(400).json({
-                    error: "Margin setting already exists. Please update it instead.",
-                });
+                return (0, apiResponse_1.sendError)(res, "Margin setting already exists. Please update it instead.", 400);
             }
             const { amount } = req.body;
             if (amount === undefined || amount === null || isNaN(amount)) {
-                return res.status(400).json({ error: "Valid 'amount' is required." });
+                return (0, apiResponse_1.sendError)(res, "Valid 'amount' is required.", 400);
             }
             // Optional: Validate currency format (e.g., 3-letter ISO code)
-            const margin = yield prisma.marginSetting.create({
+            const margin = yield prisma_1.prisma.marginSetting.create({
                 data: {
                     amount: parseFloat(amount),
                 },
             });
-            return res
-                .status(201)
-                .json({ message: "Margin created successfully", margin });
+            return (0, apiResponse_1.sendSuccess)(res, "Margin created successfully", margin, 201);
         }
         catch (error) {
             console.error("Error creating margin:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
 function getAllMargins(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const margins = yield prisma.marginSetting.findMany();
-            return res.status(200).json({ margins });
+            const margins = yield prisma_1.prisma.marginSetting.findMany();
+            return (0, apiResponse_1.sendSuccess)(res, "Margins fetched successfully", margins);
         }
         catch (error) {
             console.error("Error fetching margins:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
@@ -62,17 +58,17 @@ function getMarginById(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const { marginId } = req.params;
-            const margin = yield prisma.marginSetting.findUnique({
+            const margin = yield prisma_1.prisma.marginSetting.findUnique({
                 where: { id: marginId },
             });
             if (!margin) {
-                return res.status(404).json({ error: "Margin not found" });
+                return (0, apiResponse_1.sendError)(res, "Margin not found", 404);
             }
-            return res.status(200).json({ margin });
+            return (0, apiResponse_1.sendSuccess)(res, "Margin fetched successfully", margin);
         }
         catch (error) {
             console.error("Error fetching margin:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
@@ -84,31 +80,27 @@ function updateMargin(req, res) {
         try {
             const { amount } = req.body;
             // Find existing margin
-            const existingMargin = yield prisma.marginSetting.findFirst();
+            const existingMargin = yield prisma_1.prisma.marginSetting.findFirst();
             if (!existingMargin) {
-                return res
-                    .status(404)
-                    .json({ error: "No margin setting found to update." });
+                return (0, apiResponse_1.sendError)(res, "No margin setting found to update.", 404);
             }
             // Prepare update data
             const data = {};
             if (amount !== undefined) {
                 if (isNaN(amount)) {
-                    return res.status(400).json({ error: "Valid 'amount' is required." });
+                    return (0, apiResponse_1.sendError)(res, "Valid 'amount' is required.", 400);
                 }
                 data.amount = parseFloat(amount);
             }
-            const updatedMargin = yield prisma.marginSetting.update({
+            const updatedMargin = yield prisma_1.prisma.marginSetting.update({
                 where: { id: existingMargin.id },
                 data,
             });
-            return res
-                .status(200)
-                .json({ message: "Margin updated successfully", margin: updatedMargin });
+            return (0, apiResponse_1.sendSuccess)(res, "Margin updated successfully", updatedMargin);
         }
         catch (error) {
             console.error("Error updating margin:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
@@ -118,20 +110,18 @@ function updateMargin(req, res) {
 function deleteMargin(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const existingMargin = yield prisma.marginSetting.findFirst();
+            const existingMargin = yield prisma_1.prisma.marginSetting.findFirst();
             if (!existingMargin) {
-                return res
-                    .status(404)
-                    .json({ error: "No margin setting found to delete." });
+                return (0, apiResponse_1.sendError)(res, "No margin setting found to delete.", 404);
             }
-            yield prisma.marginSetting.delete({
+            yield prisma_1.prisma.marginSetting.delete({
                 where: { id: existingMargin.id },
             });
-            return res.status(200).json({ message: "Margin deleted successfully" });
+            return (0, apiResponse_1.sendSuccess)(res, "Margin deleted successfully");
         }
         catch (error) {
             console.error("Error deleting margin:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }

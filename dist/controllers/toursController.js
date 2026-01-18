@@ -14,10 +14,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.searchToursByCity = searchToursByCity;
 exports.getTourDetailsById = getTourDetailsById;
-const client_1 = require("@prisma/client");
 const axios_1 = __importDefault(require("axios"));
 const getToken_1 = __importDefault(require("../utils/getToken"));
-const prisma = new client_1.PrismaClient();
+const apiResponse_1 = require("../utils/apiResponse");
 const baseURL = `https://test.api.amadeus.com`;
 // export async function searchToursByCity(
 //   req: Request,
@@ -86,9 +85,7 @@ function searchToursByCity(req, res) {
         try {
             const { cityName, radiusKM = 5 } = req.query;
             if (!cityName || typeof cityName !== "string") {
-                return res
-                    .status(400)
-                    .json({ error: "cityName query parameter is required" });
+                return (0, apiResponse_1.sendError)(res, "cityName query parameter is required", 400);
             }
             // 1. Get Amadeus OAuth token
             const token = yield (0, getToken_1.default)();
@@ -103,7 +100,7 @@ function searchToursByCity(req, res) {
             });
             const cities = ((_a = cityResponse.data) === null || _a === void 0 ? void 0 : _a.data) || [];
             if (cities.length === 0) {
-                return res.status(404).json({ message: "No cities found" });
+                return (0, apiResponse_1.sendError)(res, "No cities found", 404);
             }
             // 3. Use the first city’s coordinates
             const radius = Number(radiusKM);
@@ -111,7 +108,7 @@ function searchToursByCity(req, res) {
             const longitude = (_b = city.geoCode) === null || _b === void 0 ? void 0 : _b.longitude;
             const latitude = (_c = city.geoCode) === null || _c === void 0 ? void 0 : _c.latitude;
             if (longitude === undefined || latitude === undefined) {
-                return res.status(500).json({ error: "City coordinates not found" });
+                return (0, apiResponse_1.sendError)(res, "City coordinates not found", 500);
             }
             // 4. Fetch tours/activities by radius
             const activitiesResponse = yield axios_1.default.get(`${baseURL}/v1/shopping/activities`, {
@@ -131,17 +128,11 @@ function searchToursByCity(req, res) {
                 tour.price.amount.trim() !== "" &&
                 Array.isArray(tour.pictures) &&
                 tour.pictures.length > 0);
-            return res.status(200).json({
-                message: `Found ${filteredActivities.length} tours near ${city.name} matching '${cityName}'`,
-                results: filteredActivities,
-            });
+            return (0, apiResponse_1.sendSuccess)(res, `Found ${filteredActivities.length} tours near ${city.name} matching '${cityName}'`, filteredActivities);
         }
         catch (error) {
             console.error("Error in searchToursByCity:", ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || error.message);
-            return res.status(500).json({
-                error: "Failed to search tours",
-                details: process.env.NODE_ENV === "development" ? error.message : undefined,
-            });
+            return (0, apiResponse_1.sendError)(res, "Failed to search tours", 500, error);
         }
     });
 }
@@ -151,9 +142,7 @@ function getTourDetailsById(req, res) {
         try {
             const { activityId } = req.params;
             if (!activityId) {
-                return res.status(400).json({
-                    message: `Missing required parameters: activityId`,
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing required parameters: activityId", 400);
             }
             const token = yield (0, getToken_1.default)();
             const activity = yield axios_1.default.get(`${baseURL}/v1/shopping/activities/${activityId}`, {
@@ -162,16 +151,11 @@ function getTourDetailsById(req, res) {
                 },
             });
             const activityResponse = (_a = activity.data) === null || _a === void 0 ? void 0 : _a.data;
-            return res.status(200).json({
-                message: `Success`,
-                data: activityResponse,
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Success", activityResponse);
         }
         catch (error) {
             console.error(`Error:`, error);
-            return res.status(500).json({
-                message: `Internal server error`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
