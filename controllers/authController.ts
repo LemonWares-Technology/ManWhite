@@ -7,6 +7,7 @@ import { addMinutes, isBefore } from "date-fns";
 import { mapTravelerToAmadeusFormat } from "../utils/amadeusHelper";
 import { sendVerificationEmail, sendVerificationToken } from "../utils/zeptomail";
 import { sendSuccess, sendError } from "../utils/apiResponse";
+import { generateTokens, setTokenCookies } from "../utils/authUtils";
 
 export const createAccount = async (
   req: Request,
@@ -107,43 +108,6 @@ export const verifyAccount = async (req: Request, res: Response): Promise<any> =
   }
 };
 
-// Helper: Generate Access and Refresh Tokens
-const generateTokens = (user: any) => {
-  const accessToken = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    process.env.JWT as string,
-    { expiresIn: "4h" }
-  );
-  
-  const refreshToken = jwt.sign(
-    { id: user.id },
-    (process.env.JWT_REFRESH_SECRET || process.env.JWT) as string,
-    { expiresIn: "7d" }
-  );
-  
-  return { accessToken, refreshToken };
-};
-
-// Helper: Set JWT in HttpOnly cookies
-const setTokenCookies = (res: Response, accessToken: string, refreshToken?: string) => {
-  const isProduction = process.env.NODE_ENV === "production";
-  
-  res.cookie("accessToken", accessToken, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    maxAge: 4 * 60 * 60 * 1000, // 4 hours
-  });
-
-  if (refreshToken) {
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-  }
-};
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 

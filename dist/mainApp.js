@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.mainApp = void 0;
 const express_1 = require("express");
 const cors_1 = __importDefault(require("cors"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const flightRoutes_1 = __importDefault(require("./routes/flightRoutes"));
 const bookingRoutes_1 = __importDefault(require("./routes/bookingRoutes"));
 const morgan_1 = __importDefault(require("morgan"));
@@ -20,13 +21,15 @@ const marginRoutes_1 = __importDefault(require("./routes/marginRoutes"));
 const toursRoutes_1 = __importDefault(require("./routes/toursRoutes"));
 const CarRoutes_1 = __importDefault(require("./routes/CarRoutes"));
 const passport_1 = __importDefault(require("passport"));
+const errorMiddleware_1 = require("./middleware/errorMiddleware");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const mainApp = (app) => {
     app.use((0, express_1.json)());
+    app.use((0, cookie_parser_1.default)());
     app.use((0, cors_1.default)({
-        origin: "*",
-        methods: ["GET", "POST", "DELETE", "PATCH"],
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        methods: ["GET", "POST", "DELETE", "PATCH", "PUT"],
         credentials: true,
     }));
     app.get("/", (req, res) => {
@@ -65,5 +68,7 @@ const mainApp = (app) => {
             res.redirect(`https://manwhit.lemonwares.com/auth/${userId}`);
         }
     });
+    // Centralized Error Handling (Must be last)
+    app.use(errorMiddleware_1.errorHandler);
 };
 exports.mainApp = mainApp;

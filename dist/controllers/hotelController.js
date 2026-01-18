@@ -21,25 +21,21 @@ exports.getHotelRating = getHotelRating;
 exports.bookHotel = bookHotel;
 const getToken_1 = __importDefault(require("../utils/getToken"));
 const axios_1 = __importDefault(require("axios"));
-const client_1 = require("@prisma/client");
+const prisma_1 = require("../lib/prisma");
+const apiResponse_1 = require("../utils/apiResponse");
 const helper_1 = require("../utils/helper");
 const baseURL = "https://test.api.amadeus.com";
-const prisma = new client_1.PrismaClient();
 // Autocomplete Hotel
 function hotelAutocomplete(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f;
+        var _a, _b, _c;
         try {
             const { keyword, subType } = req.query;
             if (!keyword || typeof keyword !== "string") {
-                return res
-                    .status(400)
-                    .json({ error: "keyword query parameter is required" });
+                return (0, apiResponse_1.sendError)(res, "keyword query parameter is required", 400);
             }
             if (keyword.length < 3) {
-                return res
-                    .status(400)
-                    .json({ error: "keyword must be at least 3 characters long" });
+                return (0, apiResponse_1.sendError)(res, "keyword must be at least 3 characters long", 400);
             }
             const token = yield (0, getToken_1.default)();
             // Build query parameters
@@ -69,10 +65,7 @@ function hotelAutocomplete(req, res) {
             // Check if response has data
             const hotels = ((_a = response.data) === null || _a === void 0 ? void 0 : _a.data) || [];
             if (hotels.length === 0) {
-                return res.status(200).json({
-                    suggestions: [],
-                    message: "No hotels found for the given keyword",
-                });
+                return (0, apiResponse_1.sendSuccess)(res, "No hotels found for the given keyword", []);
             }
             // Extract relevant hotel info for autocomplete
             // const suggestions = hotels.map((hotel: any) => ({
@@ -91,47 +84,20 @@ function hotelAutocomplete(req, res) {
             //   }),
             //   // Include distance if search was location-based
             // }));
-            return res.status(200).json({
-                data: hotels,
-                count: hotels.length,
-                keyword: keyword.trim(),
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Hotels fetched successfully", hotels);
         }
         catch (error) {
             console.error("Error fetching hotel autocomplete:", ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
-            // Handle specific Amadeus errors
-            if (((_c = error.response) === null || _c === void 0 ? void 0 : _c.status) === 400) {
-                return res.status(400).json({
-                    error: "Invalid request parameters",
-                    details: (_d = error.response) === null || _d === void 0 ? void 0 : _d.data,
-                });
-            }
-            if (((_e = error.response) === null || _e === void 0 ? void 0 : _e.status) === 401) {
-                return res.status(401).json({
-                    error: "Authentication failed",
-                });
-            }
-            if (((_f = error.response) === null || _f === void 0 ? void 0 : _f.status) === 429) {
-                return res.status(429).json({
-                    error: "Rate limit exceeded",
-                    message: "Too many requests. Please try again later.",
-                });
-            }
-            return res.status(500).json(Object.assign({ error: "Failed to fetch hotel autocomplete suggestions" }, (process.env.NODE_ENV === "development" && {
-                details: error.message,
-            })));
+            return (0, apiResponse_1.sendError)(res, "Failed to fetch hotel autocomplete suggestions", ((_c = error.response) === null || _c === void 0 ? void 0 : _c.status) || 500, error);
         }
     });
 }
 // Hotel List / Search
 const searchHotels = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
     try {
         const { cityCode } = req.query;
         if (!cityCode) {
-            return res.status(400).json({
-                message: "Missing required query parameters: CityCode is required.",
-            });
+            return (0, apiResponse_1.sendError)(res, "Missing required query parameters: CityCode is required.", 400);
         }
         const token = yield (0, getToken_1.default)();
         console.log("Token:", token); // Log the token for debugging
@@ -144,52 +110,36 @@ const searchHotels = (req, res) => __awaiter(void 0, void 0, void 0, function* (
             },
         });
         console.log("Keyword:", cityCode); // Log the keyword for debugging
-        return res.status(200).json({
-            message: "Hotels fetched successfully",
-            data: hotelResponse.data, // Return only the data part
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Hotels fetched successfully", hotelResponse.data);
     }
     catch (error) {
-        console.error("Error fetching hotels:", error); // log the entire error
-        console.error("Amadeus API Error Details:", (_a = error.response) === null || _a === void 0 ? void 0 : _a.data); // log details
-        return res.status(500).json({
-            message: "Error occurred while searching for hotels",
-            error: error.message || "Unknown error",
-            amadeusError: (_b = error.response) === null || _b === void 0 ? void 0 : _b.data, // include Amadeus error details in the response
-        });
+        console.error("Error fetching hotels:", error);
+        return (0, apiResponse_1.sendError)(res, "Error occurred while searching for hotels", 500, error);
     }
 });
 exports.searchHotels = searchHotels;
 // Hotel Offers Search
 function hotelOfferSearch(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
+        var _a, _b, _c, _d, _e, _f, _g;
         try {
             const { hotelIds, checkInDate, checkOutDate, adults, children, rooms, currency, roomQuantity, } = req.query;
             // Validate required parameters
             if (!hotelIds) {
-                return res.status(400).json({
-                    error: "Missing required parameter: hotelIds",
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing required parameter: hotelIds", 400);
             }
             if (!checkInDate || !checkOutDate) {
-                return res.status(400).json({
-                    error: "Missing required parameters: checkInDate and checkOutDate are required",
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing required parameters: checkInDate and checkOutDate are required", 400);
             }
             // Validate date format (YYYY-MM-DD)
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (!dateRegex.test(checkInDate) ||
                 !dateRegex.test(checkOutDate)) {
-                return res.status(400).json({
-                    error: "Invalid date format. Use YYYY-MM-DD format",
-                });
+                return (0, apiResponse_1.sendError)(res, "Invalid date format. Use YYYY-MM-DD format", 400);
             }
             // Validate that check-in is before check-out
             if (new Date(checkInDate) >= new Date(checkOutDate)) {
-                return res.status(400).json({
-                    error: "checkInDate must be before checkOutDate",
-                });
+                return (0, apiResponse_1.sendError)(res, "checkInDate must be before checkOutDate", 400);
             }
             const token = yield (0, getToken_1.default)();
             // Build query parameters
@@ -265,14 +215,7 @@ function hotelOfferSearch(req, res) {
                     })) || [],
                 });
             });
-            return res.status(200).json({
-                message: "Hotel offers retrieved successfully",
-                data: formattedOffers,
-                count: formattedOffers.length,
-                searchParams: Object.assign(Object.assign(Object.assign({ hotelIds,
-                    checkInDate,
-                    checkOutDate, adults: adults || 1 }, (children && { children })), (rooms && { rooms })), (currency && { currency })),
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Hotel offers retrieved successfully", formattedOffers);
         }
         catch (error) {
             console.error("Error fetching hotel offers:", ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
@@ -281,41 +224,17 @@ function hotelOfferSearch(req, res) {
                 // Handle specific "No rooms available" error
                 if ((errorDetails === null || errorDetails === void 0 ? void 0 : errorDetails.code) === 3664 ||
                     ((_g = errorDetails === null || errorDetails === void 0 ? void 0 : errorDetails.title) === null || _g === void 0 ? void 0 : _g.includes("NO ROOMS AVAILABLE"))) {
-                    return res.status(200).json({
-                        message: "Search completed successfully",
-                        data: [],
-                        availability: {
-                            status: "NO_ROOMS_AVAILABLE",
-                            hotelId: ((_k = (_j = (_h = errorDetails === null || errorDetails === void 0 ? void 0 : errorDetails.source) === null || _h === void 0 ? void 0 : _h.parameter) === null || _j === void 0 ? void 0 : _j.split("=")) === null || _k === void 0 ? void 0 : _k[1]) || "unknown",
-                            reason: "No rooms available at the requested property for the selected dates",
-                            suggestions: [
-                                "Try different dates",
-                                "Check nearby hotels",
-                                "Modify guest count",
-                                "Contact hotel directly for availability",
-                            ],
-                        },
-                    });
+                    return (0, apiResponse_1.sendSuccess)(res, "No rooms available for the selected dates", []);
                 }
                 // Handle "ROOM OR RATE NOT FOUND" error (code 11226)
                 if ((errorDetails === null || errorDetails === void 0 ? void 0 : errorDetails.code) === 11226 ||
                     (errorDetails === null || errorDetails === void 0 ? void 0 : errorDetails.title) === "ROOM OR RATE NOT FOUND") {
-                    return res.status(404).json({
-                        error: "Room or rate not found for the specified hotel and dates.",
-                        reason: "The requested room type or rate code does not exist or is unavailable.",
-                        suggestions: [
-                            "Verify the hotel ID and room/rate parameters.",
-                            "Try different dates or room configurations.",
-                            "Contact support if the problem persists.",
-                        ],
-                        details: process.env.NODE_ENV === "development" ? errorDetails : undefined,
-                    });
+                    return (0, apiResponse_1.sendError)(res, "Room or rate not found for the specified hotel and dates.", 404);
                 }
                 // Default 400 error handler
-                return res.status(500).json(Object.assign({ error: "Failed to fetch hotel offers" }, (process.env.NODE_ENV === "development" && {
-                    details: error.message,
-                })));
+                return (0, apiResponse_1.sendError)(res, "Failed to fetch hotel offers", 500, error);
             }
+            return (0, apiResponse_1.sendError)(res, "An unexpected error occurred", 500, error);
         }
     });
 }
@@ -539,29 +458,19 @@ function searchHotelsWithOffers(req, res) {
             const { cityCode, checkInDate, checkOutDate, adults, children, rooms, currency, roomQuantity, } = req.query;
             // Validate cityCode
             if (!cityCode || typeof cityCode !== "string") {
-                console.warn("Validation failed: Missing or invalid cityCode");
-                return res.status(400).json({ error: "Missing or invalid cityCode" });
+                return (0, apiResponse_1.sendError)(res, "Missing or invalid cityCode", 400);
             }
             // Validate checkInDate and checkOutDate presence and format
             if (!checkInDate || !checkOutDate) {
-                console.warn("Validation failed: Missing checkInDate or checkOutDate");
-                return res
-                    .status(400)
-                    .json({ error: "Missing checkInDate or checkOutDate" });
+                return (0, apiResponse_1.sendError)(res, "Missing checkInDate or checkOutDate", 400);
             }
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (!dateRegex.test(checkInDate) ||
                 !dateRegex.test(checkOutDate)) {
-                console.warn("Validation failed: Dates not in YYYY-MM-DD format");
-                return res
-                    .status(400)
-                    .json({ error: "Dates must be in YYYY-MM-DD format" });
+                return (0, apiResponse_1.sendError)(res, "Dates must be in YYYY-MM-DD format", 400);
             }
             if (new Date(checkInDate) >= new Date(checkOutDate)) {
-                console.warn("Validation failed: checkInDate is not before checkOutDate");
-                return res
-                    .status(400)
-                    .json({ error: "checkInDate must be before checkOutDate" });
+                return (0, apiResponse_1.sendError)(res, "checkInDate must be before checkOutDate", 400);
             }
             console.log("Validation passed for input parameters");
             // Get Amadeus API token
@@ -577,8 +486,7 @@ function searchHotelsWithOffers(req, res) {
             const hotels = ((_a = hotelResponse.data) === null || _a === void 0 ? void 0 : _a.data) || [];
             console.log(`Fetched ${hotels.length} hotels for cityCode ${cityCode}`);
             if (hotels.length === 0) {
-                console.info("No hotels found for the specified cityCode");
-                return res.status(200).json({ message: "No hotels found", data: [] });
+                return (0, apiResponse_1.sendSuccess)(res, "No hotels found", []);
             }
             // Limit hotels to 50 to control load
             const limitedHotels = hotels.slice(0, 50);
@@ -588,8 +496,7 @@ function searchHotelsWithOffers(req, res) {
                 .map((hotel) => hotel.hotelId)
                 .filter((id) => !!id);
             if (hotelIds.length === 0) {
-                console.info("No hotelIds found in limited hotels");
-                return res.status(200).json({ message: "No hotelIds found", data: [] });
+                return (0, apiResponse_1.sendSuccess)(res, "No hotelIds found", []);
             }
             console.log(`Extracted ${hotelIds.length} hotelIds`);
             // Step 2: Fetch offers for hotelIds
@@ -619,11 +526,7 @@ function searchHotelsWithOffers(req, res) {
             const offersData = ((_b = offersResponse.data) === null || _b === void 0 ? void 0 : _b.data) || [];
             console.log(`Received ${offersData.length} hotels with offers`);
             if (offersData.length === 0) {
-                console.info("No hotel offers available for the selected dates");
-                return res.status(200).json({
-                    message: "No hotel offers available for the selected dates",
-                    data: [],
-                });
+                return (0, apiResponse_1.sendSuccess)(res, "No hotel offers available for the selected dates", []);
             }
             // Format hotels with offers for response
             const formattedHotelsWithOffers = offersData.map((hotel) => {
@@ -671,34 +574,20 @@ function searchHotelsWithOffers(req, res) {
                     })) || [],
                 });
             });
-            console.log("Sending response with hotels and offers");
-            return res.status(200).json({
-                message: "Hotels with offers retrieved successfully",
-                count: formattedHotelsWithOffers.length,
-                data: formattedHotelsWithOffers,
-                searchParams: Object.assign(Object.assign(Object.assign({ cityCode,
-                    checkInDate,
-                    checkOutDate, adults: adults || 1 }, (children && { children })), (rooms && { rooms })), (currency && { currency })),
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Hotels with offers retrieved successfully", formattedHotelsWithOffers);
         }
         catch (error) {
             console.error("Error in searchHotelsWithOffers:", ((_c = error.response) === null || _c === void 0 ? void 0 : _c.data) || error.message);
-            return res.status(500).json({
-                error: "Failed to fetch hotels with offers",
-                details: process.env.NODE_ENV === "development" ? error.message : undefined,
-            });
+            return (0, apiResponse_1.sendError)(res, "Failed to fetch hotels with offers", 500, error);
         }
     });
 }
 function getOfferPricing(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
         try {
             const { offerId } = req.params;
             if (!offerId) {
-                return res.status(400).json({
-                    error: `Missing required parameter: offerId`,
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing required parameter: offerId", 400);
             }
             const token = yield (0, getToken_1.default)();
             const response = yield axios_1.default.get(`${baseURL}/v3/shopping/hotel-offers/${offerId}`, {
@@ -706,35 +595,21 @@ function getOfferPricing(req, res) {
                     Authorization: `Bearer ${token}`,
                 },
             });
-            return res.status(200).json({
-                message: `Success`,
-                data: response.data, // Return only the data, not the entire response object
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Success", response.data);
         }
         catch (error) {
             console.error(`Error fetching hotel offer:`, error);
-            // Handle specific API errors
-            if (error.response) {
-                return res.status(error.response.status).json({
-                    error: ((_b = (_a = error.response.data) === null || _a === void 0 ? void 0 : _a.error) === null || _b === void 0 ? void 0 : _b.message) || "API request failed",
-                });
-            }
-            return res.status(500).json({
-                error: `Internal server error`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
 /// Get Hotel Rating
 function getHotelRating(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b;
         try {
             const { hotelIds } = req.query;
             if (!hotelIds) {
-                return res.status(400).json({
-                    error: `Missing required parameter: hotelIds`,
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing required parameter: hotelIds", 400);
             }
             const token = yield (0, getToken_1.default)();
             const response = yield axios_1.default.get(`${baseURL}/v2/e-reputation/hotel-sentiments`, {
@@ -745,21 +620,11 @@ function getHotelRating(req, res) {
                     hotelIds: hotelIds, // Ensure this is a string of comma-separated IDs
                 },
             });
-            return res.status(200).json({
-                message: `Success`,
-                data: response.data, // Return only the data
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Success", response.data);
         }
         catch (error) {
             console.error(`Error fetching hotel ratings:`, error);
-            if (error.response) {
-                return res.status(error.response.status).json({
-                    error: ((_b = (_a = error.response.data) === null || _a === void 0 ? void 0 : _a.error) === null || _b === void 0 ? void 0 : _b.message) || "API request failed",
-                });
-            }
-            return res.status(500).json({
-                error: `Internal server error`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
@@ -905,18 +770,14 @@ function bookHotel(req, res) {
         var _a, _b, _c, _d, _e;
         try {
             const { data } = req.body;
-            // Get user context from request (adjust based on your auth implementation)
-            const currentUserId = ((_a = req.User) === null || _a === void 0 ? void 0 : _a.id) || null; // Assuming you have user in req from auth middleware
+            // @ts-ignore
+            const currentUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.id) || null; // Assuming you have user in req from auth middleware
             if (!data) {
-                return res.status(400).json({
-                    error: "Missing booking data",
-                });
+                return (0, apiResponse_1.sendError)(res, "Missing booking data", 400);
             }
             // Validate required fields
             if (!data.guests || data.guests.length === 0) {
-                return res.status(400).json({
-                    error: "At least one guest is required",
-                });
+                return (0, apiResponse_1.sendError)(res, "At least one guest is required", 400);
             }
             // Get Amadeus access token
             const token = yield (0, getToken_1.default)();
@@ -934,7 +795,7 @@ function bookHotel(req, res) {
             let guestUserId = null;
             // If we have a current user and their email matches, use their ID
             if (currentUserId) {
-                const currentUser = yield prisma.user.findUnique({
+                const currentUser = yield prisma_1.prisma.user.findUnique({
                     where: { id: currentUserId },
                 });
                 if (currentUser && currentUser.email === guestEmail) {
@@ -943,7 +804,7 @@ function bookHotel(req, res) {
             }
             // If no user match, try to find existing user by email
             if (!userId) {
-                const existingUser = yield prisma.user.findUnique({
+                const existingUser = yield prisma_1.prisma.user.findUnique({
                     where: { email: guestEmail },
                 });
                 if (existingUser) {
@@ -951,7 +812,7 @@ function bookHotel(req, res) {
                 }
                 else {
                     // Create or update guest user
-                    const guestUser = yield prisma.guestUser.upsert({
+                    const guestUser = yield prisma_1.prisma.guestUser.upsert({
                         where: { email: guestEmail },
                         update: {
                             firstName: primaryGuest.firstName,
@@ -969,7 +830,7 @@ function bookHotel(req, res) {
                 }
             }
             // Create booking in database
-            const booking = yield prisma.booking.create({
+            const booking = yield prisma_1.prisma.booking.create({
                 data: {
                     userId: userId,
                     guestUserId: guestUserId,
@@ -994,7 +855,7 @@ function bookHotel(req, res) {
             });
             // Create traveler records for each guest
             const travelerPromises = data.guests.map((guest, index) => {
-                return prisma.traveler.create({
+                return prisma_1.prisma.traveler.create({
                     data: {
                         bookingId: booking.id,
                         userId: userId,
@@ -1018,7 +879,7 @@ function bookHotel(req, res) {
             });
             yield Promise.all(travelerPromises);
             // Fetch the complete booking with relations
-            const completeBooking = yield prisma.booking.findUnique({
+            const completeBooking = yield prisma_1.prisma.booking.findUnique({
                 where: { id: booking.id },
                 include: {
                     user: true,
@@ -1027,9 +888,7 @@ function bookHotel(req, res) {
                 },
             });
             // Return success response
-            return res.status(201).json({
-                success: true,
-                message: "Hotel booking completed successfully",
+            return (0, apiResponse_1.sendSuccess)(res, "Hotel booking completed successfully", {
                 booking: {
                     id: completeBooking === null || completeBooking === void 0 ? void 0 : completeBooking.id,
                     referenceId: completeBooking === null || completeBooking === void 0 ? void 0 : completeBooking.referenceId,
@@ -1041,36 +900,11 @@ function bookHotel(req, res) {
                     travelers: completeBooking === null || completeBooking === void 0 ? void 0 : completeBooking.travelers,
                 },
                 amadeusResponse: amadeusResponse.data,
-            });
+            }, 201);
         }
         catch (error) {
             console.error("Error booking hotel:", ((_d = error.response) === null || _d === void 0 ? void 0 : _d.data) || error.message);
-            // If it's an Amadeus API error, return specific error
-            if ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) {
-                return res.status(error.response.status || 500).json({
-                    error: "Amadeus API Error",
-                    details: error.response.data,
-                    message: error.response.data.error_description ||
-                        error.response.data.message ||
-                        "Hotel booking failed",
-                });
-            }
-            // If it's a database error
-            if (error.code === "P2002") {
-                return res.status(409).json({
-                    error: "Booking reference already exists",
-                    message: "Please try again",
-                });
-            }
-            // Generic error
-            return res.status(500).json({
-                error: "Internal server error",
-                message: error.message || "An unexpected error occurred",
-            });
-        }
-        finally {
-            // Clean up Prisma connection
-            yield prisma.$disconnect();
+            return (0, apiResponse_1.sendError)(res, "Hotel booking failed", ((_e = error.response) === null || _e === void 0 ? void 0 : _e.status) || 500, error);
         }
     });
 }

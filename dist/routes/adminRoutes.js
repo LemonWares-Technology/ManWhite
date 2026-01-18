@@ -33,6 +33,6 @@ router.route("/delete-addons/:id").delete(adminController_1.deleteFlightAddon);
 /// Sending emails for CRM
 // router.route("/send-email").post(sendEmailCampaign);
 // transactional emails
-router.route("/send-email").post(adminController_1.sendEmailBookingProcess);
+router.route("/send-email").post(adminController_1.sendEmailBookingProcessController);
 router.route("/get-role").get(adminController_1.getUserRole);
 exports.default = router;

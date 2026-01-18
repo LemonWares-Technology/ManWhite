@@ -1,3 +1,53 @@
-node_modules
-# Keep environment variables out of version control
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/dist
+/build
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Environment variables
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Prisma
+/prisma/db.sqlite
+/prisma/db.sqlite-journal
+
+# Other
+.DS_Store
+*.seed
+*.pid
+*.pid.lock
+.npm
+.eslintcache
+.stylelintcache
+.node_repl_history
+/public/hot

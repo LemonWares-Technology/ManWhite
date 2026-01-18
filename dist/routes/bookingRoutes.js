@@ -11,16 +11,9 @@ router.route("/book-flight/:transactionId").post(bookingController_1.bookFlight)
 router
     .route("/book-flight/:userId/:transactionId")
     .post(auth_1.authenticateToken, bookingController_1.bookUserFlight);
-router.route("/add-to-cart/:userId").post(bookingController_1.addFlightToCart);
-// authenticateToken,
-router.route("/cart/:userId").get(bookingController_1.getUserCart);
-router.route("/delete-cart/:userId").delete(bookingController_1.emptyUserFlightCart);
-router.route("/remove-from-cart/:cartId").delete(bookingController_1.removeFlightFromCart);
-router.route("/book-flight/:userId/:transactionId").post(bookingController_1.bookUserFlight);
-// authenticateToken,
-router.route("/add-to-cart/:userId").post(bookingController_1.addFlightToCart);
-router.route("/delete-booking/:bookingId").delete(bookingController_1.deleteBooking);
-router.route("/remove-from-cart/:cartId").delete(bookingController_1.removeFlightFromCart);
-router.route("/cart/:userId").get(bookingController_1.getUserCart);
-// authenticateToken,
+router.route("/add-to-cart/:userId").post(auth_1.authenticateToken, bookingController_1.addFlightToCart);
+router.route("/cart/:userId").get(auth_1.authenticateToken, bookingController_1.getUserCart);
+router.route("/delete-cart/:userId").delete(auth_1.authenticateToken, bookingController_1.emptyUserFlightCart);
+router.route("/remove-from-cart/:cartId").delete(auth_1.authenticateToken, bookingController_1.removeFlightFromCart);
+router.route("/delete-booking/:bookingId").delete(auth_1.authenticateToken, bookingController_1.deleteBooking);
 exports.default = router;

@@ -1,5 +1,7 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import passport from "passport";
+
+import { sendSuccess, sendError } from "../utils/apiResponse";
 
 const router = express.Router();
 
@@ -15,22 +17,26 @@ router.get(
     // failureRedirect: "http://localhost:5173/auth",
     session: true,
   }),
-  (req, res) => {
+  (req: Request, res: Response) => {
     res.redirect("https://manwhit.lemonwares.com.ng/auth");
     // res.redirect("http://localhost:5173/home");
   }
 );
 
-router.get("/current-user", (req: any, res: any) => {
-  if (req.isAuthenticated()) {
-    return res.status(200).json(req.user); // You can send more details if needed
+const currentUserHandler: express.RequestHandler = (req, res) => {
+  if ((req as any).isAuthenticated()) {
+    sendSuccess(res, "User authenticated", (req as any).user);
   } else {
-    return res.status(401).json({ message: "Not authenticated" });
+    sendError(res, "Not authenticated", 401);
   }
-});
+};
 
-router.get("/logout", (req, res) => {
-  req.logOut(() => {
+router.get("/current-user", currentUserHandler);
+
+router.get("/logout", (req: Request, res: Response) => {
+  (req as any).logOut(() => {
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
     // res.redirect("http://localhost:5173/auth");
     res.redirect("https://manwhit.lemonwares.com.ng/auth");
   });

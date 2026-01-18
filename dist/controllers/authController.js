@@ -23,88 +23,137 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTravelerDetails = exports.getTravelerById = exports.getAllTravelers = exports.getTravelerForAmadeusBooking = exports.getTravelersForAmadeusBooking = exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.requestPasswordReset = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.createAccount = void 0;
+exports.refreshTokens = exports.logout = exports.updateTravelerDetails = exports.getTravelerById = exports.getAllTravelers = exports.getTravelerForAmadeusBooking = exports.getTravelersForAmadeusBooking = exports.createTraveler = exports.updateuserAccountDetails = exports.getAllAccounts = exports.getSingleUserAccount = exports.createNewPassword = exports.resetPassword = exports.requestPasswordReset = exports.checkPassword = exports.loginAccount = exports.createPassword = exports.verifyAccount = exports.createAccount = void 0;
 exports.deleteUserById = deleteUserById;
 exports.createGuestUser = createGuestUser;
 exports.getAllGuestUsers = getAllGuestUsers;
 exports.getGuestUserById = getGuestUserById;
+const prisma_1 = require("../lib/prisma");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const client_1 = require("@prisma/client");
 const crypto_1 = __importDefault(require("crypto"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const date_fns_1 = require("date-fns");
 const amadeusHelper_1 = require("../utils/amadeusHelper");
-const brevo_1 = require("../utils/brevo");
-const prisma = new client_1.PrismaClient();
+const zeptomail_1 = require("../utils/zeptomail");
+const apiResponse_1 = require("../utils/apiResponse");
+const authUtils_1 = require("../utils/authUtils");
 const createAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const generateAuthenticationCode = () => {
-        return Math.floor(100000 + Math.random() * 900000).toString();
-    };
     try {
         const { email } = req.body;
-        const user = yield prisma.user.findUnique({
-            where: { email: email },
+        if (!email) {
+            return (0, apiResponse_1.sendError)(res, "Email is required", 400);
+        }
+        const existingUser = yield prisma_1.prisma.user.findUnique({
+            where: { email: email.toLowerCase() },
         });
-        if (user) {
-            return res.status(400).json({
-                message: `Account with email address already exists`,
+        if (existingUser && existingUser.verified) {
+            return (0, apiResponse_1.sendError)(res, "Account with email address already exists", 400);
+        }
+        const verificationCode = crypto_1.default.randomInt(100000, 999999).toString();
+        const verificationCodeExpiresIn = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+        let user;
+        if (existingUser && !existingUser.verified) {
+            // Resend code for unverified account
+            user = yield prisma_1.prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                    verificationCode,
+                    verificationCodeExpiresIn,
+                },
             });
         }
-        const verificationCodeExpiresIn = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        const newUser = yield prisma.user.create({
-            data: {
-                email: email,
-                verificationCode: generateAuthenticationCode(),
-                verificationCodeExpiresIn,
-                verified: true,
-            },
-        });
-        // await sendVerification(newUser);
-        yield (0, brevo_1.sendVerificationEmail)(newUser);
-        const { password } = newUser, hidePassword = __rest(newUser, ["password"]);
-        return res.status(201).json({
-            message: `Account created successfully`,
-            data: hidePassword,
-        });
+        else {
+            // Create new account
+            user = yield prisma_1.prisma.user.create({
+                data: {
+                    email: email.toLowerCase(),
+                    verificationCode,
+                    verificationCodeExpiresIn,
+                    verified: false,
+                },
+            });
+        }
+        yield (0, zeptomail_1.sendVerificationEmail)(user);
+        const { password: _ } = user, hidePassword = __rest(user, ["password"]);
+        return (0, apiResponse_1.sendSuccess)(res, `Verification code sent to ${email}`, hidePassword, 201);
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured during account creation: ${error === null || error === void 0 ? void 0 : error.message}`,
-            data: error,
-        });
+        console.error("Create account error:", error);
+        return (0, apiResponse_1.sendError)(res, "Error occurred during account creation", 500, error);
     }
 });
 exports.createAccount = createAccount;
+const verifyAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, code } = req.body;
+        if (!email || !code) {
+            return (0, apiResponse_1.sendError)(res, "Email and code are required", 400);
+        }
+        const user = yield prisma_1.prisma.user.findUnique({
+            where: { email: email.toLowerCase() },
+        });
+        if (!user) {
+            return (0, apiResponse_1.sendError)(res, "Account not found", 404);
+        }
+        if (user.verified) {
+            return (0, apiResponse_1.sendError)(res, "Account already verified", 400);
+        }
+        if (user.verificationCode !== code) {
+            return (0, apiResponse_1.sendError)(res, "Invalid verification code", 400);
+        }
+        if (user.verificationCodeExpiresIn && (0, date_fns_1.isBefore)(new Date(user.verificationCodeExpiresIn), new Date())) {
+            return (0, apiResponse_1.sendError)(res, "Verification code has expired", 400);
+        }
+        yield prisma_1.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                verified: true,
+                verificationCode: null,
+                verificationCodeExpiresIn: null,
+            },
+        });
+        return (0, apiResponse_1.sendSuccess)(res, "Account verified successfully", { userId: user.id });
+    }
+    catch (error) {
+        console.error("Verify account error:", error);
+        return (0, apiResponse_1.sendError)(res, "Error during verification", 500, error);
+    }
+});
+exports.verifyAccount = verifyAccount;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 const createPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
         const { firstName, lastName, password } = req.body;
-        const user = yield prisma.user.findUnique({ where: { id } });
+        if (!password || !passwordRegex.test(password)) {
+            return (0, apiResponse_1.sendError)(res, "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character.", 400);
+        }
+        const user = yield prisma_1.prisma.user.findUnique({ where: { id } });
         if (!user) {
-            return res.status(404).json({
-                message: `Account does not exist`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account does not exist", 404);
+        }
+        if (!user.verified) {
+            return (0, apiResponse_1.sendError)(res, "Please verify your email before creating a password", 403);
         }
         const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
-        const newUser = yield prisma.user.update({
+        const { accessToken, refreshToken } = (0, authUtils_1.generateTokens)(user);
+        const newUser = yield prisma_1.prisma.user.update({
             where: { id },
             data: {
                 firstName,
                 lastName,
                 password: hashedPassword,
+                refreshToken,
+                lastLoginAt: new Date(),
+                lastActiveAt: new Date(),
             },
         });
-        const { password: _ } = newUser, hidePassword = __rest(newUser, ["password"]);
-        return res.status(200).json({
-            message: `Password created successfully`,
-            data: hidePassword,
-        });
+        const { password: _, refreshToken: __ } = newUser, hideSensitive = __rest(newUser, ["password", "refreshToken"]);
+        (0, authUtils_1.setTokenCookies)(res, accessToken, refreshToken);
+        return (0, apiResponse_1.sendSuccess)(res, "Profile and password created successfully", Object.assign(Object.assign({}, hideSensitive), { token: accessToken }));
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured while creating password`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred while creating password", 500, error);
     }
 });
 exports.createPassword = createPassword;
@@ -113,129 +162,75 @@ function deleteUserById(req, res) {
         const { userId } = req.params;
         try {
             // Check if target user exists
-            const existingUser = yield prisma.user.findUnique({
+            const existingUser = yield prisma_1.prisma.user.findUnique({
                 where: { id: userId },
             });
             if (!existingUser) {
-                return res.status(404).json({ error: "User not found" });
+                return (0, apiResponse_1.sendError)(res, "User not found", 404);
             }
             // Delete user by ID directly
-            yield prisma.user.delete({ where: { id: userId } });
-            return res.status(200).json({
-                message: "User deleted successfully",
-                userId,
-            });
+            yield prisma_1.prisma.user.delete({ where: { id: userId } });
+            return (0, apiResponse_1.sendSuccess)(res, "User deleted successfully", { userId });
         }
         catch (error) {
             console.error("User deletion error:", error);
-            return res.status(500).json({ error: "Internal server error" });
+            return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
         }
     });
 }
 const loginAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.body;
-        const user = yield prisma.user.findUnique({
+        const user = yield prisma_1.prisma.user.findUnique({
             where: { email },
         });
         if (!user) {
-            return res.status(404).json({
-                message: `Account does not exist`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account does not exist", 404);
         }
         // await sendLoginEmail(user)
-        return res.status(200).json({
-            message: `Almost there...`,
-            data: user,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Almost there...", user);
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured during login`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred during login", 500, error);
     }
 });
 exports.loginAccount = loginAccount;
-// export const checkPassword = async (
-//   req: Request,
-//   res: Response
-// ): Promise<any> => {
-//   try {
-//     const { email } = req.params;
-//     const { password } = req.body;
-//     const user = await prisma.user.findUnique({ where: { email } });
-//     if (!user) {
-//       return res.status(404).json({
-//         message: `Account does not exist`,
-//       });
-//     }
-//     if (user) {
-//       const check = await bcryptjs.compare(password, user?.password || "");
-//       if (check) {
-//         // Generate JWT token
-//         const token = jwt.sign(
-//           { id: user.id, email: user.email },
-//           process.env.JWT as string,
-//           { expiresIn: "24h" }
-//         );
-//         return res.status(200).json({
-//           message: `Logged in successfully`,
-//           data: {
-//             ...user,
-//             token,
-//           },
-//         });
-//       } else {
-//         return res.status(400).json({
-//           message: `Incorrect password`,
-//         });
-//       }
-//     }
-//   } catch (error: any) {
-//     return res.status(500).json({
-//       message: `Error occured validating password`,
-//       data: error?.message,
-//     });
-//   }
-// };
 const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.params;
         const { password } = req.body;
-        const user = yield prisma.user.findUnique({ where: { email } });
+        const user = yield prisma_1.prisma.user.findUnique({ where: { email } });
         if (!user) {
-            return res.status(404).json({
-                message: `Account does not exist`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account does not exist", 404);
         }
         const MAX_ATTEMPTS = 5;
         const LOCK_DURATION_MINUTES = 5;
         // Check if account is locked
         if (user.loginLockedUntil && (0, date_fns_1.isBefore)(new Date(), user.loginLockedUntil)) {
             const minutesLeft = Math.ceil((user.loginLockedUntil.getTime() - Date.now()) / 60000);
-            return res.status(403).json({
-                message: `Account is locked. Try again in ${minutesLeft} minute(s).`,
-            });
+            return (0, apiResponse_1.sendError)(res, `Account is locked. Try again in ${minutesLeft} minute(s).`, 403);
         }
         const isPasswordCorrect = yield bcryptjs_1.default.compare(password, user.password || "");
         if (isPasswordCorrect) {
-            // Reset loginAttempts and lock time on success
-            yield prisma.user.update({
+            // Generate tokens
+            const { accessToken, refreshToken } = (0, authUtils_1.generateTokens)(user);
+            // Reset loginAttempts and update login metadata
+            yield prisma_1.prisma.user.update({
                 where: { email },
                 data: {
                     loginAttempts: 0,
                     loginLockedUntil: null,
+                    refreshToken,
+                    lastLoginAt: new Date(),
+                    lastActiveAt: new Date(),
                 },
             });
-            const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email }, process.env.JWT, { expiresIn: "24h" });
-            return res.status(200).json({
-                message: `Logged in successfully`,
-                data: Object.assign(Object.assign({}, user), { token }),
-            });
+            (0, authUtils_1.setTokenCookies)(res, accessToken, refreshToken);
+            const { password: _, refreshToken: __ } = user, hideSensitive = __rest(user, ["password", "refreshToken"]);
+            return (0, apiResponse_1.sendSuccess)(res, "Logged in successfully", Object.assign(Object.assign({}, hideSensitive), { token: accessToken }));
         }
         else {
-            const updatedUser = yield prisma.user.update({
+            const updatedUser = yield prisma_1.prisma.user.update({
                 where: { email },
                 data: {
                     loginAttempts: {
@@ -245,37 +240,30 @@ const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             });
             if (updatedUser.loginAttempts >= MAX_ATTEMPTS) {
                 const lockUntil = (0, date_fns_1.addMinutes)(new Date(), LOCK_DURATION_MINUTES);
-                yield prisma.user.update({
+                yield prisma_1.prisma.user.update({
                     where: { email },
                     data: {
                         loginLockedUntil: lockUntil,
                     },
                 });
-                return res.status(403).json({
-                    message: `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`,
-                });
+                return (0, apiResponse_1.sendError)(res, `Account locked due to too many failed attempts. Try again in ${LOCK_DURATION_MINUTES} minutes.`, 403);
             }
             const remaining = MAX_ATTEMPTS - updatedUser.loginAttempts;
-            return res.status(400).json({
-                message: `Incorrect password. ${remaining} attempt(s) remaining.`,
-            });
+            return (0, apiResponse_1.sendError)(res, `Incorrect password. ${remaining} attempt(s) remaining.`, 400);
         }
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occurred validating password`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred validating password", 500, error);
     }
 });
 exports.checkPassword = checkPassword;
 const requestPasswordReset = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email } = req.body;
     if (!email) {
-        return res.status(400).json({ message: `Email is required.` });
+        return (0, apiResponse_1.sendError)(res, "Email is required.", 400);
     }
     try {
-        const user = yield prisma.user.findUnique({
+        const user = yield prisma_1.prisma.user.findUnique({
             where: { email },
             select: {
                 // Select only necessary fields for initial check and update
@@ -287,15 +275,12 @@ const requestPasswordReset = (req, res) => __awaiter(void 0, void 0, void 0, fun
         });
         if (!user) {
             console.log(`[requestPasswordReset] User with email ${email} not found. Sending generic success message.`);
-            return res.status(200).json({
-                message: `If an account with that email exists, a password reset code has been sent.`,
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "If an account with that email exists, a password reset code has been sent.");
         }
-        const recoveryCodeNumber = crypto_1.default.randomInt(10000, 90000);
-        const recoveryCode = recoveryCodeNumber.toString();
+        const recoveryCode = crypto_1.default.randomInt(100000, 999999).toString();
         const recoveryCodeExpiresIn = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
         // Perform the update and capture the result
-        const updatedUser = yield prisma.user.update({
+        const updatedUser = yield prisma_1.prisma.user.update({
             where: { id: user.id },
             data: {
                 recoveryCode,
@@ -304,23 +289,19 @@ const requestPasswordReset = (req, res) => __awaiter(void 0, void 0, void 0, fun
                 loginLockedUntil: null,
             },
             select: {
-                // Select fields you want to see after the update
                 id: true,
                 email: true,
+                firstName: true,
+                lastName: true,
                 recoveryCode: true,
                 recoveryCodeExpiresIn: true,
             },
         });
-        yield (0, brevo_1.sendVerificationToken)(updatedUser);
-        return res.status(200).json({
-            message: `If an account with that email exists, a password reset code has been sent.`,
-        });
+        yield (0, zeptomail_1.sendVerificationToken)(updatedUser);
+        return (0, apiResponse_1.sendSuccess)(res, "If an account with that email exists, a password reset code has been sent.");
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Internal server error`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
     }
 });
 exports.requestPasswordReset = requestPasswordReset;
@@ -328,13 +309,11 @@ const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     const { recoveryCode, newPassword } = req.body;
     // Log incoming request body for debugging
     if (!recoveryCode || !newPassword) {
-        return res
-            .status(400)
-            .json({ message: `Recovery code and new password are required.` });
+        return (0, apiResponse_1.sendError)(res, "Recovery code and new password are required.", 400);
     }
     try {
         const currentTime = new Date();
-        const user = yield prisma.user.findFirst({
+        const user = yield prisma_1.prisma.user.findFirst({
             where: {
                 recoveryCode: recoveryCode, // Exact match for the recovery code
                 recoveryCodeExpiresIn: {
@@ -362,14 +341,12 @@ const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             console.log(`[resetPassword] No user found with provided recovery code and valid expiry.`);
         }
         if (!user) {
-            return res
-                .status(400)
-                .json({ message: `Invalid or expired recovery code.` });
+            return (0, apiResponse_1.sendError)(res, "Invalid or expired recovery code.", 400);
         }
         // Hash the new password
         const hashedPassword = yield bcryptjs_1.default.hash(newPassword, 10);
         // Update the user's password and clear recovery details
-        const updatedUser = yield prisma.user.update({
+        const updatedUser = yield prisma_1.prisma.user.update({
             where: { id: user.id },
             data: {
                 password: hashedPassword,
@@ -386,15 +363,11 @@ const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 verified: true,
             },
         });
-        return res
-            .status(200)
-            .json({ message: `Password has been reset successfully.` });
+        return (0, apiResponse_1.sendSuccess)(res, "Password has been reset successfully.");
     }
     catch (error) {
         console.error(`[resetPassword] Internal server error during password reset:`, error);
-        return res
-            .status(500)
-            .json({ message: `Internal server error`, data: error.message });
+        return (0, apiResponse_1.sendError)(res, "Internal server error", 500, error);
     }
 });
 exports.resetPassword = resetPassword;
@@ -402,38 +375,29 @@ const createNewPassword = (req, res) => __awaiter(void 0, void 0, void 0, functi
     try {
         const { id } = req.params;
         const { password } = req.body;
-        const user = yield prisma.user.findUnique({ where: { id } });
+        const user = yield prisma_1.prisma.user.findUnique({ where: { id } });
         if (!user) {
-            return res.status(404).json({
-                message: `Account not found`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account not found", 404);
         }
         const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
-        const newUser = yield prisma.user.update({
+        const newUser = yield prisma_1.prisma.user.update({
             where: { id },
             data: {
                 password: hashedPassword,
             },
         });
         const { password: _ } = newUser, hidePassword = __rest(newUser, ["password"]);
-        return res.status(200).json({
-            message: `Password updated successfully`,
-            data: hidePassword,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Password updated successfully", hidePassword);
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured while creating new password`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred while creating new password", 500, error);
     }
 });
 exports.createNewPassword = createNewPassword;
 const getSingleUserAccount = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
     try {
         const { id } = req.params;
-        const user = yield prisma.user.findUnique({
+        const user = yield prisma_1.prisma.user.findUnique({
             where: { id },
             include: {
                 cart: {
@@ -449,36 +413,25 @@ const getSingleUserAccount = (req, res) => __awaiter(void 0, void 0, void 0, fun
             },
         });
         if (!user) {
-            return res.status(400).json({
-                message: `Account does not exist`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account does not exist", 404);
         }
         const { password: _ } = user, hidePassword = __rest(user, ["password"]);
-        return res.status(200).json({
-            message: `Details gotten successfully`,
-            data: hidePassword,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Details gotten successfully", hidePassword);
     }
     catch (error) {
-        throw new Error((_b = (_a = error === null || error === void 0 ? void 0 : error.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.message);
+        return (0, apiResponse_1.sendError)(res, "Error occurred while getting user details", 500, error);
     }
 });
 exports.getSingleUserAccount = getSingleUserAccount;
 const getAllAccounts = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const users = yield prisma.user.findMany({
+        const users = yield prisma_1.prisma.user.findMany({
             include: { cart: true, bookings: true },
         });
-        return res.status(200).json({
-            message: `${users === null || users === void 0 ? void 0 : users.length} Accounts(s) gotten successfully`,
-            data: users,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, `${users === null || users === void 0 ? void 0 : users.length} Account(s) gotten successfully`, users);
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured while getting all accounts`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred while getting all accounts", 500, error);
     }
 });
 exports.getAllAccounts = getAllAccounts;
@@ -486,14 +439,12 @@ const updateuserAccountDetails = (req, res) => __awaiter(void 0, void 0, void 0,
     try {
         const { id } = req.params;
         const { firstName, nationality, lastName, dob, passportNo, passportExpiry, gender, phone, } = req.body;
-        const user = yield prisma.user.findUnique({ where: { id } });
+        const user = yield prisma_1.prisma.user.findUnique({ where: { id } });
         if (!user) {
-            return res.status(404).json({
-                message: `Account does not exist`,
-            });
+            return (0, apiResponse_1.sendError)(res, "Account does not exist", 404);
         }
         if (user) {
-            const newUser = yield prisma.user.update({
+            const newUser = yield prisma_1.prisma.user.update({
                 where: { id },
                 data: {
                     firstName,
@@ -507,17 +458,11 @@ const updateuserAccountDetails = (req, res) => __awaiter(void 0, void 0, void 0,
                 },
             });
             const { password: _ } = newUser, hidePassword = __rest(newUser, ["password"]);
-            return res.status(200).json({
-                message: `Account updated successfully`,
-                data: hidePassword,
-            });
+            return (0, apiResponse_1.sendSuccess)(res, "Account updated successfully", hidePassword);
         }
     }
     catch (error) {
-        return res.status(500).json({
-            message: `Error occured while updating account`,
-            data: error === null || error === void 0 ? void 0 : error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Error occurred while updating account", 500, error);
     }
 });
 exports.updateuserAccountDetails = updateuserAccountDetails;
@@ -590,14 +535,14 @@ const createTraveler = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const { flightOfferId, firstName, lastName, dateOfBirth, gender, email, phone, countryCode, birthPlace, passportNumber, passportExpiry, issuanceCountry, validityCountry, nationality, issuanceDate, issuanceLocation, } = req.body;
         // Validate flight offer exists if provided
         if (flightOfferId) {
-            const exists = yield prisma.flightOffer.findUnique({
+            const exists = yield prisma_1.prisma.flightOffer.findUnique({
                 where: { id: flightOfferId },
             });
             if (!exists) {
-                return res.status(400).json({ message: "Invalid flightOfferId" });
+                return (0, apiResponse_1.sendError)(res, "Invalid flightOfferId", 400);
             }
         }
-        const newTraveler = yield prisma.traveler.create({
+        const newTraveler = yield prisma_1.prisma.traveler.create({
             data: {
                 flightOfferId,
                 firstName,
@@ -617,17 +562,11 @@ const createTraveler = (req, res) => __awaiter(void 0, void 0, void 0, function*
                 issuanceLocation,
             },
         });
-        return res.status(201).json({
-            message: "Traveler created successfully",
-            traveler: newTraveler,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Traveler created successfully", newTraveler, 201);
     }
     catch (error) {
         console.error("Error creating traveler:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.createTraveler = createTraveler;
@@ -636,26 +575,18 @@ const getTravelersForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, vo
     try {
         const { flightOfferId } = req.query;
         if (!flightOfferId || typeof flightOfferId !== "string") {
-            return res
-                .status(400)
-                .json({ message: "flightOfferId query parameter is required" });
+            return (0, apiResponse_1.sendError)(res, "flightOfferId query parameter is required", 400);
         }
-        const travelers = yield prisma.traveler.findMany({
+        const travelers = yield prisma_1.prisma.traveler.findMany({
             where: { flightOfferId },
             orderBy: { createdAt: "asc" },
         });
         const amadeusTravelers = travelers.map((traveler, index) => (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id || index + 1));
-        return res.status(200).json({
-            message: "Travelers formatted for Amadeus booking retrieved successfully",
-            travelers: amadeusTravelers,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Travelers formatted for Amadeus booking retrieved successfully", amadeusTravelers);
     }
     catch (error) {
         console.error("Error fetching travelers for Amadeus booking:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.getTravelersForAmadeusBooking = getTravelersForAmadeusBooking;
@@ -664,48 +595,36 @@ const getTravelerForAmadeusBooking = (req, res) => __awaiter(void 0, void 0, voi
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(400).json({ message: "Traveler ID is required" });
+            return (0, apiResponse_1.sendError)(res, "Traveler ID is required", 400);
         }
-        const traveler = yield prisma.traveler.findUnique({
+        const traveler = yield prisma_1.prisma.traveler.findUnique({
             where: { id },
         });
         if (!traveler) {
-            return res.status(404).json({ message: "Traveler not found" });
+            return (0, apiResponse_1.sendError)(res, "Traveler not found", 404);
         }
         const amadeusTraveler = (0, amadeusHelper_1.mapTravelerToAmadeusFormat)(traveler, traveler.id); // ID can be "1" or traveler.id as string
         console.log("Raw traveler from DB:", traveler);
         console.log("Mapped Amadeus traveler:", amadeusTraveler);
-        return res.status(200).json({
-            message: "Traveler formatted for Amadeus booking retrieved successfully",
-            traveler: amadeusTraveler,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Traveler formatted for Amadeus booking retrieved successfully", amadeusTraveler);
     }
     catch (error) {
         console.error("Error fetching traveler for Amadeus booking:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.getTravelerForAmadeusBooking = getTravelerForAmadeusBooking;
 // Get all travelers
 const getAllTravelers = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const travelers = yield prisma.traveler.findMany({
+        const travelers = yield prisma_1.prisma.traveler.findMany({
             orderBy: { createdAt: "desc" },
         });
-        return res.status(200).json({
-            message: "Travelers retrieved successfully",
-            data: travelers,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Travelers retrieved successfully", travelers);
     }
     catch (error) {
         console.error("Error fetching travelers:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.getAllTravelers = getAllTravelers;
@@ -714,25 +633,19 @@ const getTravelerById = (req, res) => __awaiter(void 0, void 0, void 0, function
     try {
         const { id } = req.params;
         if (!id) {
-            return res.status(400).json({ message: "Traveler ID is required" });
+            return (0, apiResponse_1.sendError)(res, "Traveler ID is required", 400);
         }
-        const traveler = yield prisma.traveler.findUnique({
+        const traveler = yield prisma_1.prisma.traveler.findUnique({
             where: { id },
         });
         if (!traveler) {
-            return res.status(404).json({ message: "Traveler not found" });
+            return (0, apiResponse_1.sendError)(res, "Traveler not found", 404);
         }
-        return res.status(200).json({
-            message: "Traveler retrieved successfully",
-            data: traveler,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Traveler retrieved successfully", traveler);
     }
     catch (error) {
         console.error("Error fetching traveler:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.getTravelerById = getTravelerById;
@@ -741,25 +654,25 @@ const updateTravelerDetails = (req, res) => __awaiter(void 0, void 0, void 0, fu
         const { id } = req.params;
         const { flightOfferId, firstName, lastName, dateOfBirth, gender, email, phone, countryCode, birthPlace, passportNumber, passportExpiry, issuanceCountry, validityCountry, nationality, issuanceDate, issuanceLocation, } = req.body;
         if (!id) {
-            return res.status(400).json({ message: "Traveler ID is required" });
+            return (0, apiResponse_1.sendError)(res, "Traveler ID is required", 400);
         }
         // Verify traveler exists
-        const existingTraveler = yield prisma.traveler.findUnique({
+        const existingTraveler = yield prisma_1.prisma.traveler.findUnique({
             where: { id },
         });
         if (!existingTraveler) {
-            return res.status(404).json({ message: "Traveler not found" });
+            return (0, apiResponse_1.sendError)(res, "Traveler not found", 404);
         }
         // Validate flight offer exists if provided
         if (flightOfferId) {
-            const exists = yield prisma.flightOffer.findUnique({
+            const exists = yield prisma_1.prisma.flightOffer.findUnique({
                 where: { id: flightOfferId },
             });
             if (!exists) {
-                return res.status(400).json({ message: "Invalid flightOfferId" });
+                return (0, apiResponse_1.sendError)(res, "Invalid flightOfferId", 400);
             }
         }
-        const updatedTraveler = yield prisma.traveler.update({
+        const updatedTraveler = yield prisma_1.prisma.traveler.update({
             where: { id },
             data: {
                 flightOfferId: flightOfferId || existingTraveler.flightOfferId,
@@ -786,17 +699,11 @@ const updateTravelerDetails = (req, res) => __awaiter(void 0, void 0, void 0, fu
                 issuanceLocation: issuanceLocation || existingTraveler.issuanceLocation,
             },
         });
-        return res.status(200).json({
-            message: "Traveler updated successfully",
-            traveler: updatedTraveler,
-        });
+        return (0, apiResponse_1.sendSuccess)(res, "Traveler updated successfully", updatedTraveler);
     }
     catch (error) {
         console.error("Error updating traveler:", error);
-        return res.status(500).json({
-            message: "Server error",
-            error: error.message,
-        });
+        return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
     }
 });
 exports.updateTravelerDetails = updateTravelerDetails;
@@ -805,13 +712,13 @@ function createGuestUser(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         const { email, firstName, lastName, phone, address, postalCode, city, country, } = req.body;
         if (!email || !firstName || !lastName) {
-            return res.status(400).json({ error: "Missing required guest fields" });
+            return (0, apiResponse_1.sendError)(res, "Missing required guest fields", 400);
         }
         try {
             // Check if guest already exists
-            let guest = yield prisma.guestUser.findUnique({ where: { email } });
+            let guest = yield prisma_1.prisma.guestUser.findUnique({ where: { email } });
             if (!guest) {
-                guest = yield prisma.guestUser.create({
+                guest = yield prisma_1.prisma.guestUser.create({
                     data: {
                         email,
                         firstName,
@@ -824,11 +731,11 @@ function createGuestUser(req, res) {
                     },
                 });
             }
-            return res.status(201).json({ guestUserId: guest.id, guest });
+            return (0, apiResponse_1.sendSuccess)(res, "Guest user created/found successfully", guest, 201);
         }
         catch (error) {
             console.error("Error creating guest user:", error);
-            return res.status(500).json({ error: "Server error" });
+            return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
         }
     });
 }
@@ -836,12 +743,12 @@ function createGuestUser(req, res) {
 function getAllGuestUsers(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const guests = yield prisma.guestUser.findMany();
-            return res.status(200).json({ guests });
+            const guests = yield prisma_1.prisma.guestUser.findMany();
+            return (0, apiResponse_1.sendSuccess)(res, "Guest users fetched successfully", guests);
         }
         catch (error) {
             console.error("Error fetching guest users:", error);
-            return res.status(500).json({ error: "Server error" });
+            return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
         }
     });
 }
@@ -850,15 +757,63 @@ function getGuestUserById(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
         const { id } = req.params;
         try {
-            const guest = yield prisma.guestUser.findUnique({ where: { id } });
+            const guest = yield prisma_1.prisma.guestUser.findUnique({ where: { id } });
             if (!guest) {
-                return res.status(404).json({ error: "Guest user not found" });
+                return (0, apiResponse_1.sendError)(res, "Guest user not found", 404);
             }
-            return res.status(200).json({ guest });
+            return (0, apiResponse_1.sendSuccess)(res, "Guest user fetched successfully", guest);
         }
         catch (error) {
             console.error("Error fetching guest user:", error);
-            return res.status(500).json({ error: "Server error" });
+            return (0, apiResponse_1.sendError)(res, "Server error", 500, error);
         }
     });
 }
+const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { refreshToken } = req.cookies;
+        if (refreshToken) {
+            yield prisma_1.prisma.user.updateMany({
+                where: { refreshToken },
+                data: { refreshToken: null },
+            });
+        }
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+        return (0, apiResponse_1.sendSuccess)(res, "Logged out successfully");
+    }
+    catch (error) {
+        return (0, apiResponse_1.sendError)(res, "Logout failed", 500, error);
+    }
+});
+exports.logout = logout;
+const refreshTokens = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { refreshToken } = req.cookies;
+        if (!refreshToken) {
+            return (0, apiResponse_1.sendError)(res, "Refresh token missing", 401);
+        }
+        const decoded = jsonwebtoken_1.default.verify(refreshToken, (process.env.JWT_REFRESH_SECRET || process.env.JWT));
+        const user = yield prisma_1.prisma.user.findUnique({
+            where: { id: decoded.id },
+        });
+        if (!user || user.refreshToken !== refreshToken) {
+            return (0, apiResponse_1.sendError)(res, "Invalid or rotated refresh token", 403);
+        }
+        const tokens = (0, authUtils_1.generateTokens)(user);
+        yield prisma_1.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                refreshToken: tokens.refreshToken,
+                lastActiveAt: new Date(),
+            },
+        });
+        (0, authUtils_1.setTokenCookies)(res, tokens.accessToken, tokens.refreshToken);
+        return (0, apiResponse_1.sendSuccess)(res, "Tokens refreshed successfully", { token: tokens.accessToken });
+    }
+    catch (error) {
+        console.error("Refresh token error:", error);
+        return (0, apiResponse_1.sendError)(res, "Expired or invalid refresh token", 403, error);
+    }
+});
+exports.refreshTokens = refreshTokens;
