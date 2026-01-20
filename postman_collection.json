@@ -274,7 +274,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{BASE_URL}}/flight/search?originLocationCode=LON&destinationLocationCode=NYC&departureDate=2025-06-01&adults=1",
+							"raw": "{{BASE_URL}}/flight/search?originLocationCode=LON&destinationLocationCode=NYC&departureDate=2026-06-01&adults=1",
 							"host": [
 								"{{BASE_URL}}"
 							],
@@ -293,7 +293,7 @@
 								},
 								{
 									"key": "departureDate",
-									"value": "2025-06-01"
+									"value": "2026-06-01"
 								},
 								{
 									"key": "adults",
@@ -567,7 +567,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{BASE_URL}}/hotel/hotel-offer-search?hotelIds=XXX&checkInDate=2025-06-01&checkOutDate=2025-06-05",
+							"raw": "{{BASE_URL}}/hotel/hotel-offer-search?hotelIds=XXX&checkInDate=2026-06-01&checkOutDate=2026-06-05",
 							"host": [
 								"{{BASE_URL}}"
 							],
@@ -577,8 +577,8 @@
 							],
                             "query": [
                                 { "key": "hotelIds", "value": "XXX" },
-                                { "key": "checkInDate", "value": "2025-06-01" },
-                                { "key": "checkOutDate", "value": "2025-06-05" }
+                                { "key": "checkInDate", "value": "2026-06-01" },
+                                { "key": "checkOutDate", "value": "2026-06-05" }
                             ]
 						}
 					}
@@ -588,7 +588,7 @@
 					"request": {
 						"method": "GET",
 						"header": [],
-						"url": "{{BASE_URL}}/hotel/hotels-with-offers?cityCode=PAR&checkInDate=2025-06-01&checkOutDate=2025-06-05"
+						"url": "{{BASE_URL}}/hotel/hotels-with-offers?cityCode=PAR&checkInDate=2026-06-01&checkOutDate=2026-06-05"
 					}
 				},
 				{
@@ -816,7 +816,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"data\": {\n    \"startLocationCode\": \"LHR\",\n    \"endAddressLine\": \"London Eye, London\",\n    \"endCityName\": \"London\",\n    \"endCountryCode\": \"GB\",\n    \"startDateTime\": \"2025-06-01T10:00:00\",\n    \"passengers\": 2,\n    \"passengerCharacteristics\": [ { \"passengerTypeCode\": \"ADT\" } ]\n  }\n}",
+							"raw": "{\n  \"data\": {\n    \"startLocationCode\": \"LHR\",\n    \"endAddressLine\": \"London Eye, London\",\n    \"endCityName\": \"London\",\n    \"endCountryCode\": \"GB\",\n    \"startDateTime\": \"2026-06-01T10:00:00\",\n    \"passengers\": 2,\n    \"passengerCharacteristics\": [ { \"passengerTypeCode\": \"ADT\" } ]\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"

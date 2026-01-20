@@ -875,3 +875,75 @@ export async function deleteBooking(req: Request, res: Response): Promise<any> {
     return sendError(res, "Internal server error", 500, error);
   }
 }
+
+export const getUserBookingStats = async (
+  req: Request,
+  res: Response
+): Promise<any> => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return sendError(res, "User ID is required", 400);
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        status: true,
+        bookingDetails: true,
+      },
+    });
+
+    let total = bookings.length;
+    let pending = 0; // Represents Upcoming flights
+    let completed = 0; // Represents Past flights
+
+    const now = new Date();
+
+    bookings.forEach((booking: any) => {
+      let flightDate = null;
+      
+      // Attempt to extract flight date from Amadeus flight offer structure
+      if (
+        booking.bookingDetails &&
+        booking.bookingDetails.itineraries &&
+        Array.isArray(booking.bookingDetails.itineraries) &&
+        booking.bookingDetails.itineraries.length > 0
+      ) {
+        const firstItinerary = booking.bookingDetails.itineraries[0];
+        if (
+          firstItinerary.segments &&
+          Array.isArray(firstItinerary.segments) &&
+          firstItinerary.segments.length > 0
+        ) {
+          const firstSegment = firstItinerary.segments[0];
+          if (firstSegment.departure && firstSegment.departure.at) {
+            flightDate = new Date(firstSegment.departure.at);
+          }
+        }
+      }
+
+      if (flightDate) {
+        if (flightDate > now) {
+          pending++;
+        } else {
+          completed++;
+        }
+      } else {
+        // Fallback: If no flight date is found, assume completed
+        completed++;
+      }
+    });
+
+    return sendSuccess(res, "User booking stats retrieved successfully", {
+      total,
+      pending,
+      completed,
+    });
+  } catch (error: any) {
+    console.error("Error fetching booking stats:", error);
+    return sendError(res, "Error occurred while fetching booking stats", 500, error);
+  }
+};
