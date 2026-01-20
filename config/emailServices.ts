@@ -173,7 +173,7 @@
 //           States.
 //         </div>
 //         <div>LemonWares Technology</div>
-//         <div>® 2025 Manwhit Inc</div>
+//         <div>® 2026 Manwhit Inc</div>
 //         <div>All rights reserved</div>
 //       </div>
 //     </div>
@@ -392,7 +392,7 @@ export const sendVerification = async (user: any) => {
               Manwhit, Inc., 2145 Michigan Avenue, Santa Monica CA 90404, United States.
             </div>
             <div>LemonWares Technology</div>
-            <div>© 2025 Manwhit Inc</div>
+            <div>© 2026 Manwhit Inc</div>
             <div>All rights reserved</div>
           </div>
         </div>
@@ -658,7 +658,7 @@ export const sendPaymentSuccessEmail = async (
 
           <!-- Footer -->
           <div style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">
-            <p style="margin: 5px 0;">© 2025 Manwhit Areos. All rights reserved.</p>
+            <p style="margin: 5px 0;">© 2026 Manwhit Areos. All rights reserved.</p>
             <p style="margin: 5px 0;">This is an automated email. Please do not reply.</p>
           </div>
         </div>
@@ -855,7 +855,7 @@ export const sendResetPassword = async (user: any) => {
           States.
         </div>
         <div>LemonWares Technology</div>
-        <div>® 2025 Manwhit Inc</div>
+        <div>® 2026 Manwhit Inc</div>
         <div>All rights reserved</div>
       </div>
     </div>
@@ -1019,7 +1019,7 @@ export const sendToken = async (agent: any) => {
           States.
         </div>
         <div>LemonWares Technology</div>
-        <div>® 2025 Manwhit Inc</div>
+        <div>® 2026 Manwhit Inc</div>
         <div>All rights reserved</div>
       </div>
     </div>
