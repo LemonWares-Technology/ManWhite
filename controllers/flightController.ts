@@ -1756,12 +1756,53 @@ export async function bookFlightWithOptionalAddons(
     console.log("Amadeus token acquired:", token ? "Success" : "Failed");
     console.log("Token length:", token?.length || 0);
 
+    // Clean flight offer - remove enriched fields added by backend
+    console.log("=== CLEANING FLIGHT OFFER ===");
+    const cleanFlightOffer = JSON.parse(JSON.stringify(flightOffer));
+    
+    // Remove backend-added fields from price
+    if (cleanFlightOffer.price) {
+      delete cleanFlightOffer.price.originalTotal;
+      delete cleanFlightOffer.price.originalGrandTotal;
+      delete cleanFlightOffer.price.marginAdded;
+      delete cleanFlightOffer.price.billingCurrency;
+      
+      // Convert string prices to numbers if needed
+      if (typeof cleanFlightOffer.price.total === 'string') {
+        cleanFlightOffer.price.total = parseFloat(cleanFlightOffer.price.total);
+      }
+      if (typeof cleanFlightOffer.price.grandTotal === 'string') {
+        cleanFlightOffer.price.grandTotal = parseFloat(cleanFlightOffer.price.grandTotal);
+      }
+      if (typeof cleanFlightOffer.price.base === 'string') {
+        cleanFlightOffer.price.base = parseFloat(cleanFlightOffer.price.base);
+      }
+    }
+    
+    // Remove details from segments
+    if (cleanFlightOffer.itineraries) {
+      for (const itinerary of cleanFlightOffer.itineraries) {
+        if (itinerary.segments) {
+          for (const segment of itinerary.segments) {
+            if (segment.departure?.details) {
+              delete segment.departure.details;
+            }
+            if (segment.arrival?.details) {
+              delete segment.arrival.details;
+            }
+          }
+        }
+      }
+    }
+
+    console.log("Cleaned flight offer:", JSON.stringify(cleanFlightOffer, null, 2));
+
     // Payload construction
     console.log("=== PAYLOAD CONSTRUCTION ===");
     const payload = {
       data: {
         type: "flight-order",
-        flightOffers: [flightOffer],
+        flightOffers: [cleanFlightOffer],  // Use cleaned offer
         travelers: amadeusTravelers,
         holder: {
           name: {
@@ -1773,7 +1814,7 @@ export async function bookFlightWithOptionalAddons(
       },
     };
 
-    console.log("Amadeus API payload:", JSON.stringify(payload, null, 2));
+    console.log("Final Amadeus API payload:", JSON.stringify(payload, null, 2));
     console.log("Payload size (bytes):", JSON.stringify(payload).length);
 
     // Amadeus API call
