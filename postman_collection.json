@@ -310,7 +310,7 @@
 						"header": [],
                         "body": {
 							"mode": "raw",
-							"raw": "{ \"flightOffer\": {} }",
+							"raw": "{\n  \"flightOffer\": {\n    \"type\": \"flight-offer\",\n    \"id\": \"1\",\n    \"source\": \"GDS\",\n    \"instantTicketingRequired\": false,\n    \"nonHomogeneous\": false,\n    \"oneWay\": false,\n    \"lastTicketingDate\": \"2026-02-01\",\n    \"numberOfBookableSeats\": 9,\n    \"itineraries\": [\n      {\n        \"duration\": \"PT8H30M\",\n        \"segments\": [\n          {\n            \"departure\": {\n              \"iataCode\": \"LHR\",\n              \"at\": \"2026-02-01T10:00:00\"\n            },\n            \"arrival\": {\n              \"iataCode\": \"JFK\",\n              \"at\": \"2026-02-01T13:30:00\"\n            },\n            \"carrierCode\": \"BA\",\n            \"number\": \"123\",\n            \"aircraft\": {\n              \"code\": \"777\"\n            },\n            \"duration\": \"PT8H30M\",\n            \"id\": \"1\",\n            \"numberOfStops\": 0\n          }\n        ]\n      }\n    ],\n    \"price\": {\n      \"currency\": \"NGN\",\n      \"total\": \"450000\",\n      \"base\": \"400000\",\n      \"fees\": [\n        {\n          \"amount\": \"50000\",\n          \"type\": \"SUPPLIER\"\n        }\n      ],\n      \"grandTotal\": \"450000\"\n    },\n    \"pricingOptions\": {\n      \"fareType\": [\n        \"PUBLISHED\"\n      ],\n      \"includedCheckedBagsOnly\": true\n    },\n    \"validatingAirlineCodes\": [\n      \"BA\"\n    ],\n    \"travelerPricings\": [\n      {\n        \"travelerId\": \"1\",\n        \"fareOption\": \"STANDARD\",\n        \"travelerType\": \"ADULT\",\n        \"price\": {\n          \"currency\": \"NGN\",\n          \"total\": \"450000\",\n          \"base\": \"400000\"\n        }\n      }\n    ]\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -343,7 +343,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{}",
+							"raw": "{\n  \"offerData\": {\n    \"type\": \"flight-offer\",\n    \"id\": \"1\",\n    \"source\": \"GDS\",\n    \"price\": {\n      \"currency\": \"NGN\",\n      \"total\": \"450000\",\n      \"grandTotal\": \"450000\"\n    },\n    \"itineraries\": [\n      {\n        \"segments\": [\n          {\n            \"departure\": {\n              \"iataCode\": \"LHR\",\n              \"at\": \"2026-02-01T10:00:00\"\n            },\n            \"arrival\": {\n              \"iataCode\": \"JFK\",\n              \"at\": \"2026-02-01T13:30:00\"\n            },\n            \"carrierCode\": \"BA\",\n            \"number\": \"123\"\n          }\n        ]\n      }\n    ]\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -360,7 +360,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{}",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"flightOffer\": {\n    \"type\": \"flight-offer\",\n    \"id\": \"1\",\n    \"source\": \"GDS\",\n    \"price\": {\n      \"currency\": \"NGN\",\n      \"total\": \"450000\",\n      \"grandTotal\": \"450000\"\n    }\n  },\n  \"travelers\": [\n    {\n      \"id\": \"1\",\n      \"dateOfBirth\": \"1990-01-01\",\n      \"gender\": \"MALE\",\n      \"name\": {\n        \"firstName\": \"JOHN\",\n        \"lastName\": \"DOE\"\n      },\n      \"contact\": {\n        \"emailAddress\": \"john.doe@example.com\",\n        \"phones\": [\n          {\n            \"deviceType\": \"MOBILE\",\n            \"countryCallingCode\": \"234\",\n            \"number\": \"8012345678\"\n          }\n        ]\n      },\n      \"documents\": [\n        {\n          \"documentType\": \"PASSPORT\",\n          \"number\": \"A12345678\",\n          \"expiryDate\": \"2028-12-31\",\n          \"issuanceCountry\": \"NG\",\n          \"nationality\": \"NG\",\n          \"holder\": true\n        }\n      ]\n    }\n  ],\n  \"addonIds\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -377,7 +377,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{}",
+							"raw": "{\n  \"guestUserId\": \"{{guestUserId}}\",\n  \"flightOffer\": {\n    \"type\": \"flight-offer\",\n    \"id\": \"1\",\n    \"source\": \"GDS\",\n    \"price\": {\n      \"currency\": \"NGN\",\n      \"total\": \"450000\",\n      \"grandTotal\": \"450000\"\n    }\n  },\n  \"travelers\": [\n    {\n      \"id\": \"1\",\n      \"dateOfBirth\": \"1985-05-15\",\n      \"gender\": \"FEMALE\",\n      \"name\": {\n        \"firstName\": \"JANE\",\n        \"lastName\": \"SMITH\"\n      },\n      \"contact\": {\n        \"emailAddress\": \"jane.smith@example.com\",\n        \"phones\": [\n          {\n            \"deviceType\": \"MOBILE\",\n            \"countryCallingCode\": \"234\",\n            \"number\": \"9087654321\"\n          }\n        ]\n      },\n      \"documents\": [\n        {\n          \"documentType\": \"PASSPORT\",\n          \"number\": \"B98765432\",\n          \"expiryDate\": \"2029-06-30\",\n          \"issuanceCountry\": \"NG\",\n          \"nationality\": \"NG\",\n          \"holder\": true\n        }\n      ]\n    }\n  ],\n  \"addonIds\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -395,6 +395,64 @@
 						"url": "{{BASE_URL}}/flight/get-flight-details/{{referenceId}}"
 					}
 				},
+				{
+					"name": "Update Booking Status",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"CONFIRMED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/booking/{{referenceId}}/status"
+					}
+				},
+				{
+					"name": "Delete Flight Booking",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/delete-flight-details/{{referenceId}}"
+					}
+				},
+				{
+					"name": "Get Seat Maps",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/get-seatmaps/{{referenceId}}"
+					}
+				},
+				{
+					"name": "Get One Flight",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/get-one-flight/{{flightId}}"
+					}
+				},
+				{
+					"name": "Update Flight Status",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"CONFIRMED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/update-flight-status/{{flightId}}"
+					}
+				},
                 {
 					"name": "Airport Details",
 					"request": {
@@ -409,6 +467,47 @@
 						"method": "GET",
 						"header": [],
 						"url": "{{BASE_URL}}/flight/airline-details?airlineCode=BA"
+					}
+				},
+				{
+					"name": "Get Airlines by Airport",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/airport-airlines?airportCode=LHR"
+					}
+				},
+				{
+					"name": "Get Airlines by Multiple Airports",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/airlines-by-airports?airportCodes=LHR,JFK,CDG"
+					}
+				},
+				{
+					"name": "Get Random Flight Offers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{BASE_URL}}/flight/flight-offers?limit=10"
+					}
+				},
+				{
+					"name": "Get Flight Offer Details",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flightOfferId\": \"1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/flight/flight-offer-details"
 					}
 				}
 			]
@@ -501,13 +600,36 @@
 					}
 				},
 				{
+					"name": "Get Hotel Ratings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{BASE_URL}}/hotel/ratings?hotelIds=HLLONMIL",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"hotel",
+								"ratings"
+							],
+							"query": [
+								{
+									"key": "hotelIds",
+									"value": "HLLONMIL"
+								}
+							]
+						}
+					}
+				},
+				{
 					"name": "Book Hotel",
 					"request": {
 						"method": "POST",
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{}",
+							"raw": "{\n  \"data\": {\n    \"offerId\": \"{{hotelOfferId}}\",\n    \"guests\": [\n      {\n        \"name\": {\n          \"title\": \"MR\",\n          \"firstName\": \"JOHN\",\n          \"lastName\": \"DOE\"\n        },\n        \"contact\": {\n          \"phone\": \"+234-8012345678\",\n          \"email\": \"john.doe@example.com\"\n        }\n      }\n    ],\n    \"payments\": [\n      {\n        \"method\": \"CREDIT_CARD\",\n        \"card\": {\n          \"vendorCode\": \"VI\",\n          \"cardNumber\": \"4111111111111111\",\n          \"expiryDate\": \"2028-12\",\n          \"holderName\": \"JOHN DOE\"\n        }\n      }\n    ]\n  }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -586,6 +708,40 @@
 						"method": "DELETE",
 						"header": [],
 						"url": "{{BASE_URL}}/booking/delete-booking/{{bookingId}}"
+					}
+				},
+				{
+					"name": "Book Flight (Transaction)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flightOffer\": {},\n  \"travelers\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/booking/book-flight/{{transactionId}}"
+					}
+				},
+				{
+					"name": "Book User Flight (Auth Required)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flightOffer\": {},\n  \"travelers\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{BASE_URL}}/booking/book-flight/{{userId}}/{{transactionId}}"
 					}
 				}
 			]

@@ -150,7 +150,11 @@ export const createPassword: any = async (req: Request, res: Response) => {
 
     setTokenCookies(res, accessToken, refreshToken);
 
-    return sendSuccess(res, "Profile and password created successfully", { ...hideSensitive, token: accessToken });
+    return sendSuccess(res, "Profile and password created successfully", { 
+      user: hideSensitive, 
+      accessToken,
+      refreshToken
+    });
   } catch (error: any) {
     return sendError(res, "Error occurred while creating password", 500, error);
   }
@@ -255,7 +259,11 @@ export const checkPassword = async (
 
       const { password: _, refreshToken: __, ...hideSensitive } = user;
 
-      return sendSuccess(res, "Logged in successfully", { ...hideSensitive, token: accessToken });
+      return sendSuccess(res, "Logged in successfully", { 
+        user: hideSensitive, 
+        accessToken,
+        refreshToken 
+      });
     } else {
       const updatedUser = await prisma.user.update({
         where: { email },
@@ -976,7 +984,7 @@ export const logout: any = async (req: Request, res: Response) => {
 
 export const refreshTokens: any = async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.cookies;
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
       return sendError(res, "Refresh token missing", 401);
@@ -1007,7 +1015,13 @@ export const refreshTokens: any = async (req: Request, res: Response) => {
 
     setTokenCookies(res, tokens.accessToken, tokens.refreshToken);
 
-    return sendSuccess(res, "Tokens refreshed successfully", { token: tokens.accessToken });
+    const { password: _, refreshToken: __, ...hideSensitive } = user;
+
+    return sendSuccess(res, "Tokens refreshed successfully", { 
+      accessToken: tokens.accessToken, 
+      refreshToken: tokens.refreshToken,
+      user: hideSensitive
+    });
   } catch (error: any) {
     console.error("Refresh token error:", error);
     return sendError(res, "Expired or invalid refresh token", 403, error);
