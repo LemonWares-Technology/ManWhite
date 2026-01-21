@@ -13,6 +13,14 @@ export async function getCachedIataCode(
   locationName: string,
   token: string
 ): Promise<string | null> {
+  // Robust check for IATA code (3 uppercase letters)
+  if (locationName && typeof locationName === 'string') {
+    const trimmed = locationName.trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
   if (iataCache[locationName]) return iataCache[locationName];
 
   try {
