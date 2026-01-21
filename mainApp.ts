@@ -22,19 +22,42 @@ env.config();
 export const mainApp = (app: Application) => {
   app.use(json());
   app.use(cookieParser());
+  const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://192.168.114.68:3000",
+    "http://10.0.2.2:3000", // Android Emulator
+  ].filter((o): o is string => !!o);
+
   app.use(
     cors({
-      origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://192.168.")) {
+          callback(null, true);
+        } else {
+          callback(null, false); // Or new Error('CORS')
+        }
+      },
       methods: ["GET", "POST", "DELETE", "PATCH", "PUT"],
       credentials: true,
     })
   );
 
   app.get("/", (req: Request, res: Response) => {
-    res.send(`<a href="#" target="_blank">Successfully gotten</a>`);
+    res.status(200).json({
+      message: "Manwhit Areos API is Live 🚀",
+      version: "1.0.0",
+      docs: `${process.env.FRONTEND_URL || "http://localhost:3000"}/docs`,
+    });
   });
+
   app.get("/health", (req: Request, res: Response) => {
-    res.send(`<a href="#" target="_blank">Health</a>`);
+    res.status(200).json({
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+    });
   });
   app.use(
     session({

@@ -123,8 +123,11 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       token
     );
 
+    console.log(`Resolved IATA: Origin(${origin}) -> ${originIata}, Destination(${destination}) -> ${destinationIata}`);
+
     if (!originIata || !destinationIata) {
-      return sendError(res, "Could not find IATA code for origin or destination", 400);
+      console.error(`IATA Resolution Failed: Origin=${originIata}, Destination=${destinationIata}`);
+      return sendError(res, `Could not find IATA code for ${!originIata ? origin : destination}`, 400);
     }
 
     // NEW: Get detailed airport information for origin and destination
