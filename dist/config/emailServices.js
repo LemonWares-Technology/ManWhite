@@ -174,7 +174,7 @@ exports.sendToken = exports.sendResetPassword = exports.sendPaymentSuccessEmail 
 //           States.
 //         </div>
 //         <div>LemonWares Technology</div>
-//         <div>® 2025 Manwhit Inc</div>
+//         <div>® 2026 Manwhit Inc</div>
 //         <div>All rights reserved</div>
 //       </div>
 //     </div>
@@ -378,7 +378,7 @@ const sendVerification = (user) => __awaiter(void 0, void 0, void 0, function* (
               Manwhit, Inc., 2145 Michigan Avenue, Santa Monica CA 90404, United States.
             </div>
             <div>LemonWares Technology</div>
-            <div>© 2025 Manwhit Inc</div>
+            <div>© 2026 Manwhit Inc</div>
             <div>All rights reserved</div>
           </div>
         </div>
@@ -610,7 +610,7 @@ const sendPaymentSuccessEmail = (paymentData, bookingData) => __awaiter(void 0, 
 
           <!-- Footer -->
           <div style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">
-            <p style="margin: 5px 0;">© 2025 Manwhit Areos. All rights reserved.</p>
+            <p style="margin: 5px 0;">© 2026 Manwhit Areos. All rights reserved.</p>
             <p style="margin: 5px 0;">This is an automated email. Please do not reply.</p>
           </div>
         </div>
@@ -799,7 +799,7 @@ const sendResetPassword = (user) => __awaiter(void 0, void 0, void 0, function* 
           States.
         </div>
         <div>LemonWares Technology</div>
-        <div>® 2025 Manwhit Inc</div>
+        <div>® 2026 Manwhit Inc</div>
         <div>All rights reserved</div>
       </div>
     </div>
@@ -960,7 +960,7 @@ const sendToken = (agent) => __awaiter(void 0, void 0, void 0, function* () {
           States.
         </div>
         <div>LemonWares Technology</div>
-        <div>® 2025 Manwhit Inc</div>
+        <div>® 2026 Manwhit Inc</div>
         <div>All rights reserved</div>
       </div>
     </div>

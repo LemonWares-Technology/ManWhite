@@ -13,6 +13,7 @@ router
     .post(auth_1.authenticateToken, bookingController_1.bookUserFlight);
 router.route("/add-to-cart/:userId").post(auth_1.authenticateToken, bookingController_1.addFlightToCart);
 router.route("/cart/:userId").get(auth_1.authenticateToken, bookingController_1.getUserCart);
+router.route("/stats/:userId").get(auth_1.authenticateToken, bookingController_1.getUserBookingStats);
 router.route("/delete-cart/:userId").delete(auth_1.authenticateToken, bookingController_1.emptyUserFlightCart);
 router.route("/remove-from-cart/:cartId").delete(auth_1.authenticateToken, bookingController_1.removeFlightFromCart);
 router.route("/delete-booking/:bookingId").delete(auth_1.authenticateToken, bookingController_1.deleteBooking);

@@ -150,7 +150,11 @@ const createPassword = (req, res) => __awaiter(void 0, void 0, void 0, function*
         });
         const { password: _, refreshToken: __ } = newUser, hideSensitive = __rest(newUser, ["password", "refreshToken"]);
         (0, authUtils_1.setTokenCookies)(res, accessToken, refreshToken);
-        return (0, apiResponse_1.sendSuccess)(res, "Profile and password created successfully", Object.assign(Object.assign({}, hideSensitive), { token: accessToken }));
+        return (0, apiResponse_1.sendSuccess)(res, "Profile and password created successfully", {
+            user: hideSensitive,
+            accessToken,
+            refreshToken
+        });
     }
     catch (error) {
         return (0, apiResponse_1.sendError)(res, "Error occurred while creating password", 500, error);
@@ -227,7 +231,11 @@ const checkPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             });
             (0, authUtils_1.setTokenCookies)(res, accessToken, refreshToken);
             const { password: _, refreshToken: __ } = user, hideSensitive = __rest(user, ["password", "refreshToken"]);
-            return (0, apiResponse_1.sendSuccess)(res, "Logged in successfully", Object.assign(Object.assign({}, hideSensitive), { token: accessToken }));
+            return (0, apiResponse_1.sendSuccess)(res, "Logged in successfully", {
+                user: hideSensitive,
+                accessToken,
+                refreshToken
+            });
         }
         else {
             const updatedUser = yield prisma_1.prisma.user.update({
@@ -789,7 +797,7 @@ const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
 exports.logout = logout;
 const refreshTokens = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { refreshToken } = req.cookies;
+        const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
         if (!refreshToken) {
             return (0, apiResponse_1.sendError)(res, "Refresh token missing", 401);
         }
@@ -809,7 +817,12 @@ const refreshTokens = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             },
         });
         (0, authUtils_1.setTokenCookies)(res, tokens.accessToken, tokens.refreshToken);
-        return (0, apiResponse_1.sendSuccess)(res, "Tokens refreshed successfully", { token: tokens.accessToken });
+        const { password: _, refreshToken: __ } = user, hideSensitive = __rest(user, ["password", "refreshToken"]);
+        return (0, apiResponse_1.sendSuccess)(res, "Tokens refreshed successfully", {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: hideSensitive
+        });
     }
     catch (error) {
         console.error("Refresh token error:", error);

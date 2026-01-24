@@ -34,6 +34,13 @@ const iataCache = {};
 function getCachedIataCode(locationName, token) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c;
+        // Robust check for IATA code (3 uppercase letters)
+        if (locationName && typeof locationName === 'string') {
+            const trimmed = locationName.trim().toUpperCase();
+            if (/^[A-Z]{3}$/.test(trimmed)) {
+                return trimmed;
+            }
+        }
         if (iataCache[locationName])
             return iataCache[locationName];
         try {
@@ -63,7 +70,7 @@ function getCachedLocationDetails(iataCode, token) {
             return locationCache[iataCode];
         try {
             // Small delay to prevent 429
-            yield sleep(250);
+            yield sleep(300);
             const response = yield axios_1.default.get("https://test.api.amadeus.com/v1/reference-data/locations", {
                 headers: { Authorization: `Bearer ${token}` },
                 params: {
