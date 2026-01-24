@@ -34,44 +34,48 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
   try {
     const token = await getAmadeusToken();
 
-    // If keyword is provided, return location suggestions WITH details
+    // If keyword is provided, return location suggestions
     if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {
-      const { data }: any = await axios.get(
-        `${baseURL}/v1/reference-data/locations`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          params: {
-            subType: "CITY,AIRPORT",
-            keyword,
-          },
-        }
-      );
+      try {
+        const { data }: any = await axios.get(
+          `${baseURL}/v1/reference-data/locations`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            params: {
+              subType: "CITY,AIRPORT",
+              keyword,
+            },
+          }
+        );
 
-      const suggestions = data.data.map((item: any) => ({
-        name: item.name,
-        iataCode: item.iataCode,
-        cityCode: item.cityCode,
-        countryName: item.countryName,
-        stateCode: item.stateCode,
-        regionCode: item.regionCode,
-        // Add more details if requested
-        ...(getAirportDetails === "true" && {
-          detailedName: item.detailedName,
-          cityName: item.address?.cityName,
-          countryCode: item.address?.countryCode,
-          coordinates: {
-            latitude: item.geoCode?.latitude,
-            longitude: item.geoCode?.longitude,
-          },
-          timeZone: item.timeZoneOffset,
-          type: item.subType,
-          relevance: item.relevance,
-        }),
-      }));
+        const suggestions = data.data.map((item: any) => ({
+          name: item.name,
+          iataCode: item.iataCode,
+          cityCode: item.cityCode,
+          countryName: item.countryName,
+          stateCode: item.stateCode,
+          regionCode: item.regionCode,
+          ...(getAirportDetails === "true" && {
+            detailedName: item.detailedName,
+            cityName: item.address?.cityName,
+            countryCode: item.address?.countryCode,
+            coordinates: {
+              latitude: item.geoCode?.latitude,
+              longitude: item.geoCode?.longitude,
+            },
+            timeZone: item.timeZoneOffset,
+            type: item.subType,
+            relevance: item.relevance,
+          }),
+        }));
 
-      return sendSuccess(res, "Suggestions retrieved successfully", suggestions);
+        return sendSuccess(res, "Suggestions retrieved successfully", suggestions);
+      } catch (suggestionError: any) {
+        console.error("Amadeus Location Search Error:", suggestionError.response?.data || suggestionError.message);
+        return sendSuccess(res, "Failed to retrieve suggestions from provider", []);
+      }
     }
 
     // NEW: If only getting airport details for specific IATA codes
@@ -83,9 +87,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
           airportDetails.origin = await getIataCodeDetails(origin);
         } catch (error) {
           console.error(`Failed to get details for origin ${origin}:`, error);
-          airportDetails.origin = {
-            error: `Could not find details for ${origin}`,
-          };
+          airportDetails.origin = { error: `Could not find details for ${origin}` };
         }
       }
 
@@ -93,13 +95,8 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
         try {
           airportDetails.destination = await getIataCodeDetails(destination);
         } catch (error) {
-          console.error(
-            `Failed to get details for destination ${destination}:`,
-            error
-          );
-          airportDetails.destination = {
-            error: `Could not find details for ${destination}`,
-          };
+          console.error(`Failed to get details for destination ${destination}:`, error);
+          airportDetails.destination = { error: `Could not find details for ${destination}` };
         }
       }
 
@@ -108,52 +105,33 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
 
     // For flight search, validate required fields
     if (!origin || !destination || !adults || !departureDate) {
-      return sendError(res, "Missing required field(s): origin/originLocationCode, destination/destinationLocationCode, adults, departureDate", 400);
+      return sendError(res, "Missing required fields", 400);
     }
 
     const adultsNum = Number(adults);
-    if (isNaN(adultsNum) || adultsNum < 1) {
-      return sendError(res, "Invalid 'adults' parameter", 400);
-    }
-
-    // Get IATA codes for origin and destination
     const originIata = await getCachedIataCode(origin, token);
-    const destinationIata = await getCachedIataCode(
-      destination,
-      token
-    );
-
-    console.log(`Resolved IATA: Origin(${origin}) -> ${originIata}, Destination(${destination}) -> ${destinationIata}`);
+    const destinationIata = await getCachedIataCode(destination, token);
 
     if (!originIata || !destinationIata) {
-      console.error(`IATA Resolution Failed: Origin=${originIata}, Destination=${destinationIata}`);
-      return sendError(res, `Could not find IATA code for ${!originIata ? origin : destination}`, 400);
+      return sendError(res, "Could not resolve IATA codes", 400);
     }
 
-    // NEW: Get detailed airport information for origin and destination
-    let originDetails = null;
-    let destinationDetails = null;
+    let originInfo = null;
+    let destinationInfo = null;
 
     if (getAirportDetails === "true") {
       try {
-        [originDetails, destinationDetails] = await Promise.allSettled([
+        const [ori, dest] = await Promise.allSettled([
           getIataCodeDetails(originIata),
           getIataCodeDetails(destinationIata),
         ]);
-
-        originDetails =
-          originDetails.status === "fulfilled" ? originDetails.value : null;
-        destinationDetails =
-          destinationDetails.status === "fulfilled"
-            ? destinationDetails.value
-            : null;
-      } catch (error) {
-        console.error("Error getting airport details:", error);
-        // Continue without details if this fails
+        originInfo = ori.status === "fulfilled" ? ori.value : null;
+        destinationInfo = dest.status === "fulfilled" ? dest.value : null;
+      } catch (e) {
+        console.error("Error getting airport details:", e);
       }
     }
 
-    // Get excluded airlines from your database
     const excludedAirlines = await prisma.excludedAirline.findMany();
     const excludedCodesArray = excludedAirlines
       .map((a: any) => a.airlineCode?.trim())
@@ -172,7 +150,7 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       params.excludedAirlineCodes = excludedCodesArray.join(",");
     }
 
-    const response: any = await axios.get(
+    const flightResponse: any = await axios.get(
       `${baseURL}/v2/shopping/flight-offers`,
       {
         headers: { Authorization: `Bearer ${token}` },
@@ -180,16 +158,13 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       }
     );
 
-    const offers = response.data.data;
-
-    // Apply margin from your settings
+    const offers = flightResponse.data.data;
     const marginSetting = await prisma.marginSetting.findFirst();
     const percent = marginSetting?.amount || 0;
 
     const adjustedOffers = offers.map((offer: any) => {
       const originalPrice = parseFloat(offer.price.total);
       const priceWithMargin = originalPrice * (1 + percent / 100);
-
       return {
         ...offer,
         price: {
@@ -199,26 +174,15 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       };
     });
 
-    // Enrich segments with location details (your existing code)
     for (const offer of adjustedOffers) {
       for (const itinerary of offer.itineraries) {
         for (const segment of itinerary.segments) {
-          const originDetails = await getCachedLocationDetails(
-            segment.departure.iataCode,
-            token
-          );
-          const destinationDetails = await getCachedLocationDetails(
-            segment.arrival.iataCode,
-            token
-          );
-
-          segment.departure.details = originDetails;
-          segment.arrival.details = destinationDetails;
+          segment.departure.details = await getCachedLocationDetails(segment.departure.iataCode, token);
+          segment.arrival.details = await getCachedLocationDetails(segment.arrival.iataCode, token);
         }
       }
     }
 
-    // NEW: Include airport details in response if requested
     const responseData: any = {
       data: adjustedOffers,
       meta: {
@@ -230,17 +194,17 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
       },
     };
 
-    if (getAirportDetails === "true" && (originDetails || destinationDetails)) {
+    if (getAirportDetails === "true") {
       responseData.airportDetails = {
-        origin: originDetails,
-        destination: destinationDetails,
+        origin: originInfo,
+        destination: destinationInfo,
       };
     }
 
     return sendSuccess(res, "Flight offers retrieved successfully", responseData);
   } catch (error: any) {
-    console.error("Error occurred:", error.response?.data || error.message);
-    return sendError(res, "Failed to fetch flight offers", 500, error);
+    console.error("Flight Search Error:", error.response?.data || error.message);
+    return sendError(res, "Failed to fetch flight offers", error.response?.status || 500, error.response?.data || error);
   }
 }
 
