@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bookUserFlight = exports.bookFlight = exports.emptyUserFlightCart = exports.removeFlightFromCart = exports.getUserCart = exports.addFlightToCart = exports.verifyFlightPrice = void 0;
+exports.getUserBookingStats = exports.bookUserFlight = exports.bookFlight = exports.emptyUserFlightCart = exports.removeFlightFromCart = exports.getUserCart = exports.addFlightToCart = exports.verifyFlightPrice = void 0;
 exports.deleteBooking = deleteBooking;
 const prisma_1 = require("../lib/prisma");
 const axios_1 = __importDefault(require("axios"));
@@ -754,3 +754,63 @@ function deleteBooking(req, res) {
         }
     });
 }
+const getUserBookingStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { userId } = req.params;
+        if (!userId) {
+            return (0, apiResponse_1.sendError)(res, "User ID is required", 400);
+        }
+        const bookings = yield prisma_1.prisma.booking.findMany({
+            where: { userId },
+            select: {
+                id: true,
+                status: true,
+                bookingDetails: true,
+            },
+        });
+        let total = bookings.length;
+        let pending = 0; // Represents Upcoming flights
+        let completed = 0; // Represents Past flights
+        const now = new Date();
+        bookings.forEach((booking) => {
+            let flightDate = null;
+            // Attempt to extract flight date from Amadeus flight offer structure
+            if (booking.bookingDetails &&
+                booking.bookingDetails.itineraries &&
+                Array.isArray(booking.bookingDetails.itineraries) &&
+                booking.bookingDetails.itineraries.length > 0) {
+                const firstItinerary = booking.bookingDetails.itineraries[0];
+                if (firstItinerary.segments &&
+                    Array.isArray(firstItinerary.segments) &&
+                    firstItinerary.segments.length > 0) {
+                    const firstSegment = firstItinerary.segments[0];
+                    if (firstSegment.departure && firstSegment.departure.at) {
+                        flightDate = new Date(firstSegment.departure.at);
+                    }
+                }
+            }
+            if (flightDate) {
+                if (flightDate > now) {
+                    pending++;
+                }
+                else {
+                    completed++;
+                }
+            }
+            else {
+                // Fallback: If no flight date is found, assume completed
+                completed++;
+            }
+        });
+        return (0, apiResponse_1.sendSuccess)(res, "User booking stats retrieved successfully", {
+            total,
+            pending,
+            completed,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching booking stats:", error);
+        return (0, apiResponse_1.sendError)(res, "Error occurred while fetching booking stats", 500, error);
+    }
+});
+exports.getUserBookingStats = getUserBookingStats;

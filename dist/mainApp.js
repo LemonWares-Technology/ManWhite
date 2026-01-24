@@ -27,16 +27,38 @@ dotenv_1.default.config();
 const mainApp = (app) => {
     app.use((0, express_1.json)());
     app.use((0, cookie_parser_1.default)());
+    const allowedOrigins = [
+        process.env.FRONTEND_URL,
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://192.168.114.68:3000",
+        "http://10.0.2.2:3000", // Android Emulator
+    ].filter((o) => !!o);
     app.use((0, cors_1.default)({
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://192.168.")) {
+                callback(null, true);
+            }
+            else {
+                callback(null, false); // Or new Error('CORS')
+            }
+        },
         methods: ["GET", "POST", "DELETE", "PATCH", "PUT"],
         credentials: true,
     }));
     app.get("/", (req, res) => {
-        res.send(`<a href="#" target="_blank">Successfully gotten</a>`);
+        res.status(200).json({
+            message: "Manwhit Areos API is Live 🚀",
+            version: "1.0.0",
+            docs: `${process.env.FRONTEND_URL || "http://localhost:3000"}/docs`,
+        });
     });
     app.get("/health", (req, res) => {
-        res.send(`<a href="#" target="_blank">Health</a>`);
+        res.status(200).json({
+            status: "ok",
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+        });
     });
     app.use((0, express_session_1.default)({
         secret: process.env.JWT,
