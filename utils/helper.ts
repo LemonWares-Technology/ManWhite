@@ -56,7 +56,7 @@ export async function getCachedLocationDetails(
 
   try {
     // Small delay to prevent 429
-    await sleep(250);
+    await sleep(300);
 
     const response: any = await axios.get(
       "https://test.api.amadeus.com/v1/reference-data/locations",

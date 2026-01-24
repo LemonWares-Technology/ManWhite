@@ -170,15 +170,40 @@ export async function searchFlights(req: Request, res: Response): Promise<any> {
         price: {
           ...offer.price,
           total: parseFloat(priceWithMargin.toFixed(2)),
+          grandTotal: parseFloat(priceWithMargin.toFixed(2)),
         },
       };
     });
 
+    // Enrichment optimization: Collect all unique IATA codes first
+    const uniqueIatas = new Set<string>();
     for (const offer of adjustedOffers) {
       for (const itinerary of offer.itineraries) {
         for (const segment of itinerary.segments) {
-          segment.departure.details = await getCachedLocationDetails(segment.departure.iataCode, token);
-          segment.arrival.details = await getCachedLocationDetails(segment.arrival.iataCode, token);
+          uniqueIatas.add(segment.departure.iataCode);
+          uniqueIatas.add(segment.arrival.iataCode);
+        }
+      }
+    }
+
+    // Fetch unique details with staggered delay to avoid 429
+    const cityDetailsMap = new Map<string, any>();
+    const iataArray = Array.from(uniqueIatas);
+    
+    // Process unique IATAs in sequence with a delay
+    for (const iataCode of iataArray) {
+      const details = await getCachedLocationDetails(iataCode, token);
+      if (details) {
+        cityDetailsMap.set(iataCode, details);
+      }
+    }
+
+    // Assign details back to segments
+    for (const offer of adjustedOffers) {
+      for (const itinerary of offer.itineraries) {
+        for (const segment of itinerary.segments) {
+          segment.departure.details = cityDetailsMap.get(segment.departure.iataCode) || null;
+          segment.arrival.details = cityDetailsMap.get(segment.arrival.iataCode) || null;
         }
       }
     }
@@ -771,25 +796,7 @@ export async function updateBookingStatus(
   }
 }
 
-// Cache or fetch airport details by IATA code
-async function getCachedLocationDetail(iataCode: string, token: string) {
-  const response: any = await axios.get(
-    `${baseURL}/v1/reference-data/locations`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      params: {
-        subType: "AIRPORT",
-        keyword: iataCode.toUpperCase(),
-      },
-    }
-  );
-  if (response.data && response.data.data && response.data.data.length > 0) {
-    return response.data.data[0];
-  }
-  return null;
-}
+
 
 // New endpoint to get airport name/details by IATA code
 export async function getAirportDetails(
@@ -805,7 +812,7 @@ export async function getAirportDetails(
 
     const token = await getAmadeusToken();
 
-    const airportDetails = await getCachedLocationDetail(iataCode, token);
+    const airportDetails = await getCachedLocationDetails(iataCode, token);
 
     if (!airportDetails) {
       return sendError(res, "Airport not found", 404);
