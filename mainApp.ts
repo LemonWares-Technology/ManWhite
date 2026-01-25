@@ -28,12 +28,17 @@ export const mainApp = (app: Application) => {
     "http://localhost:5173",
     "http://192.168.114.68:3000",
     "http://10.0.2.2:3000", // Android Emulator
+    "https://manwhit.lemonwares.com.ng",
   ].filter((o): o is string => !!o);
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://192.168.")) {
+        if (
+          !origin ||
+          allowedOrigins.includes(origin) ||
+          origin.startsWith("http://192.168.")
+        ) {
           callback(null, true);
         } else {
           callback(null, false); // Or new Error('CORS')
@@ -41,7 +46,7 @@ export const mainApp = (app: Application) => {
       },
       methods: ["GET", "POST", "DELETE", "PATCH", "PUT"],
       credentials: true,
-    })
+    }),
   );
 
   app.get("/", (req: Request, res: Response) => {
@@ -64,7 +69,7 @@ export const mainApp = (app: Application) => {
       secret: process.env.JWT!,
       resave: false,
       saveUninitialized: false,
-    })
+    }),
   );
 
   app.use(morgan("dev"));
