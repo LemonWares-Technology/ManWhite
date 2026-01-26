@@ -11,10 +11,10 @@ const iataCache: Record<string, string> = {};
 
 export async function getCachedIataCode(
   locationName: string,
-  token: string
+  token: string,
 ): Promise<string | null> {
   // Robust check for IATA code (3 uppercase letters)
-  if (locationName && typeof locationName === 'string') {
+  if (locationName && typeof locationName === "string") {
     const trimmed = locationName.trim().toUpperCase();
     if (/^[A-Z]{3}$/.test(trimmed)) {
       return trimmed;
@@ -33,7 +33,7 @@ export async function getCachedIataCode(
           subType: "CITY,AIRPORT",
           page: { limit: 1 },
         },
-      }
+      },
     );
 
     const code = response.data.data?.[0]?.iataCode || null;
@@ -42,7 +42,7 @@ export async function getCachedIataCode(
   } catch (error: any) {
     console.error(
       `Failed to get IATA for ${locationName}:`,
-      error.response?.data || error.message
+      error.response?.data || error.message,
     );
     return null;
   }
@@ -50,7 +50,7 @@ export async function getCachedIataCode(
 
 export async function getCachedLocationDetails(
   iataCode: string,
-  token: string
+  token: string,
 ): Promise<any> {
   if (locationCache[iataCode]) return locationCache[iataCode];
 
@@ -64,19 +64,32 @@ export async function getCachedLocationDetails(
         headers: { Authorization: `Bearer ${token}` },
         params: {
           keyword: iataCode,
-          subType: "AIRPORT",
+          subType: "CITY,AIRPORT", // Allow both city and airport codes
         },
-      }
+      },
     );
 
     const details = response.data.data?.[0];
-    if (details) locationCache[iataCode] = details;
+    if (details) {
+      locationCache[iataCode] = details;
+      console.log(`✅ Cached location details for ${iataCode}:`, {
+        name: details.name,
+        type: details.subType,
+        iataCode: details.iataCode,
+      });
+    } else {
+      console.log(`⚠️ No location details found for ${iataCode}`);
+      // Cache null result to avoid repeated failed requests
+      locationCache[iataCode] = null;
+    }
     return details;
   } catch (error: any) {
     console.error(
-      `Failed to get location for ${iataCode}:`,
-      error.response?.data || error.message
+      `❌ Failed to get location for ${iataCode}:`,
+      error.response?.data || error.message,
     );
+    // Cache null result to avoid repeated failed requests
+    locationCache[iataCode] = null;
     return null;
   }
 }
@@ -85,7 +98,7 @@ export async function getCachedLocationDetails(
 export async function initiateHotelBookingTemplate(
   amount: number,
   currency: string,
-  customerEmail: string
+  customerEmail: string,
 ) {
   const paymentData = {
     tx_ref: `hotel_${uuidv4}`,
@@ -111,7 +124,7 @@ export async function initiateHotelBookingTemplate(
         Authorization: `Bearer ${process.env.FLUTTER_SECRET}`,
         "Content-Type": "application/json",
       },
-    }
+    },
   );
 
   return response?.data;
@@ -206,7 +219,7 @@ export function extractCarCurrency(amadeusResponse: any): string {
 }
 
 export function extractCarAmadeusReference(
-  amadeusResponse: any
+  amadeusResponse: any,
 ): string | null {
   try {
     // Adjust based on actual Amadeus car booking response structure
@@ -218,7 +231,7 @@ export function extractCarAmadeusReference(
     );
   } catch (error) {
     console.warn(
-      "Could not extract Amadeus reference from car booking response"
+      "Could not extract Amadeus reference from car booking response",
     );
     return null;
   }

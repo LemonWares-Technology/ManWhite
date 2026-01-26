@@ -37,12 +37,12 @@ const helper_1 = require("../utils/helper");
 const zeptomail_1 = require("../utils/zeptomail");
 const iata_1 = require("../utils/iata");
 const apiResponse_1 = require("../utils/apiResponse");
+const rateLimiter_1 = require("../utils/rateLimiter");
 const baseURL = "https://test.api.amadeus.com";
 function searchFlights(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
-        const { origin: queryOrigin, destination: queryDestination, originLocationCode, destinationLocationCode, adults, departureDate, keyword, currency = "NGN", getAirportDetails = false, // New parameter to request airport details
-         } = req.query;
+        var _a, _b, _c, _d, _e;
+        const { origin: queryOrigin, destination: queryDestination, originLocationCode, destinationLocationCode, adults, departureDate, keyword, currency = "NGN", getAirportDetails = false, } = req.query;
         // Map alternate parameter names
         const origin = (queryOrigin || originLocationCode);
         const destination = (queryDestination || destinationLocationCode);
@@ -50,6 +50,21 @@ function searchFlights(req, res) {
             const token = yield (0, getToken_1.default)();
             // If keyword is provided, return location suggestions
             if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {
+                // Generate cache key for keyword search
+                const cacheKey = rateLimiter_1.SearchCache.generateKey({ keyword });
+                // Check cache first
+                const cachedResult = rateLimiter_1.SearchCache.get(cacheKey);
+                if (cachedResult) {
+                    return (0, apiResponse_1.sendSuccess)(res, "Suggestions retrieved from cache", cachedResult);
+                }
+                // Check rate limit before making API call
+                if (!rateLimiter_1.amadeusRateLimiter.canMakeRequest("location_search")) {
+                    const retryAfter = rateLimiter_1.amadeusRateLimiter.getRetryAfter("location_search");
+                    return (0, apiResponse_1.sendError)(res, `Rate limit exceeded. Try again in ${retryAfter} seconds.`, 429, {
+                        retryAfter,
+                        cached: false,
+                    });
+                }
                 try {
                     const { data } = yield axios_1.default.get(`${baseURL}/v1/reference-data/locations`, {
                         headers: {
@@ -75,10 +90,19 @@ function searchFlights(req, res) {
                             relevance: item.relevance,
                         })));
                     });
+                    // Cache the successful result for 5 minutes
+                    rateLimiter_1.SearchCache.set(cacheKey, suggestions, 300);
                     return (0, apiResponse_1.sendSuccess)(res, "Suggestions retrieved successfully", suggestions);
                 }
                 catch (suggestionError) {
                     console.error("Amadeus Location Search Error:", ((_a = suggestionError.response) === null || _a === void 0 ? void 0 : _a.data) || suggestionError.message);
+                    // If it's a rate limit error, return appropriate response
+                    if (((_b = suggestionError.response) === null || _b === void 0 ? void 0 : _b.status) === 429) {
+                        return (0, apiResponse_1.sendError)(res, "API rate limit exceeded. Please try again later.", 429, {
+                            retryAfter: 60,
+                            cached: false,
+                        });
+                    }
                     return (0, apiResponse_1.sendSuccess)(res, "Failed to retrieve suggestions from provider", []);
                 }
             }
@@ -91,7 +115,9 @@ function searchFlights(req, res) {
                     }
                     catch (error) {
                         console.error(`Failed to get details for origin ${origin}:`, error);
-                        airportDetails.origin = { error: `Could not find details for ${origin}` };
+                        airportDetails.origin = {
+                            error: `Could not find details for ${origin}`,
+                        };
                     }
                 }
                 if (destination) {
@@ -100,7 +126,9 @@ function searchFlights(req, res) {
                     }
                     catch (error) {
                         console.error(`Failed to get details for destination ${destination}:`, error);
-                        airportDetails.destination = { error: `Could not find details for ${destination}` };
+                        airportDetails.destination = {
+                            error: `Could not find details for ${destination}`,
+                        };
                     }
                 }
                 return (0, apiResponse_1.sendSuccess)(res, "Airport details retrieved successfully", airportDetails);
@@ -181,8 +209,10 @@ function searchFlights(req, res) {
             for (const offer of adjustedOffers) {
                 for (const itinerary of offer.itineraries) {
                     for (const segment of itinerary.segments) {
-                        segment.departure.details = cityDetailsMap.get(segment.departure.iataCode) || null;
-                        segment.arrival.details = cityDetailsMap.get(segment.arrival.iataCode) || null;
+                        segment.departure.details =
+                            cityDetailsMap.get(segment.departure.iataCode) || null;
+                        segment.arrival.details =
+                            cityDetailsMap.get(segment.arrival.iataCode) || null;
                     }
                 }
             }
@@ -205,8 +235,8 @@ function searchFlights(req, res) {
             return (0, apiResponse_1.sendSuccess)(res, "Flight offers retrieved successfully", responseData);
         }
         catch (error) {
-            console.error("Flight Search Error:", ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
-            return (0, apiResponse_1.sendError)(res, "Failed to fetch flight offers", ((_c = error.response) === null || _c === void 0 ? void 0 : _c.status) || 500, ((_d = error.response) === null || _d === void 0 ? void 0 : _d.data) || error);
+            console.error("Flight Search Error:", ((_c = error.response) === null || _c === void 0 ? void 0 : _c.data) || error.message);
+            return (0, apiResponse_1.sendError)(res, "Failed to fetch flight offers", ((_d = error.response) === null || _d === void 0 ? void 0 : _d.status) || 500, ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || error);
         }
     });
 }
@@ -1093,7 +1123,9 @@ function getFlightOfferDetails(req, res) {
             }
             // Verify required fields
             if (!flightOffer.id || !flightOffer.itineraries || !flightOffer.price) {
-                return (0, apiResponse_1.sendError)(res, "Invalid flight offer structure", 400, { requiredFields: ["id", "itineraries", "price"] });
+                return (0, apiResponse_1.sendError)(res, "Invalid flight offer structure", 400, {
+                    requiredFields: ["id", "itineraries", "price"],
+                });
             }
             // Get Amadeus token
             const token = yield (0, getToken_1.default)();
@@ -1385,13 +1417,13 @@ function bookFlightWithOptionalAddons(req, res) {
                 delete cleanFlightOffer.price.marginAdded;
                 delete cleanFlightOffer.price.billingCurrency;
                 // Convert string prices to numbers if needed
-                if (typeof cleanFlightOffer.price.total === 'string') {
+                if (typeof cleanFlightOffer.price.total === "string") {
                     cleanFlightOffer.price.total = parseFloat(cleanFlightOffer.price.total);
                 }
-                if (typeof cleanFlightOffer.price.grandTotal === 'string') {
+                if (typeof cleanFlightOffer.price.grandTotal === "string") {
                     cleanFlightOffer.price.grandTotal = parseFloat(cleanFlightOffer.price.grandTotal);
                 }
-                if (typeof cleanFlightOffer.price.base === 'string') {
+                if (typeof cleanFlightOffer.price.base === "string") {
                     cleanFlightOffer.price.base = parseFloat(cleanFlightOffer.price.base);
                 }
             }

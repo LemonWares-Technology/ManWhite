@@ -5,12 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const flightController_1 = require("../controllers/flightController");
+const rateLimitMiddleware_1 = require("../middleware/rateLimitMiddleware");
 const router = express_1.default.Router();
-router.route("/search").get(flightController_1.searchFlights); // Working
+router.route("/search").get(rateLimitMiddleware_1.locationSearchRateLimit, flightController_1.searchFlights); // Working - with rate limiting
 router.route("/save-flight-offer").post(flightController_1.saveSelectedFlightOffer); // Working
 router.route("/get-flight-offers").get(flightController_1.getFlightOffers); //Working
 router.route("/get-flight-offer/:id").get(flightController_1.getFlightOfferById); //working
-router.route("/search-flight-price").post(flightController_1.searchFlightPrice); //Working
+router
+    .route("/search-flight-price")
+    .post(rateLimitMiddleware_1.flightSearchRateLimit, flightController_1.searchFlightPrice); //Working - with rate limiting
 router.route("/book-flight").post(flightController_1.bookFlightWithOptionalAddons); // Working
 router.route("/book-guest-flight").post(flightController_1.bookFlightAsGuest); // Working
 router.route("/booking/:referenceId/status").patch(flightController_1.updateBookingStatus);

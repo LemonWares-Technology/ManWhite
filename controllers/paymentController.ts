@@ -10,7 +10,9 @@ import { prisma } from "../lib/prisma";
 import { sendSuccess, sendError } from "../utils/apiResponse";
 env.config();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
+const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY || "sk_test_placeholder",
+);
 
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTER_SECRET!;
 const FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTER_PUBLIC!;
@@ -18,7 +20,7 @@ const FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTER_PUBLIC!;
 const FRONTEND_URL = process.env.FRONTEND_URL!;
 
 // export const initializePayment = async (
-//   req: Request,
+//   req: Request,the
 //   res: Response
 // ): Promise<any> => {
 //   try {
@@ -95,23 +97,60 @@ const FRONTEND_URL = process.env.FRONTEND_URL!;
 
 export const initializePayment = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const { amount, email, bookingData, currency, baseAmountNGN } = req.body;
 
     if (!amount || !email || !currency) {
-      return sendError(res, "Missing required parameters: amount, email, or currency", 400);
+      return sendError(
+        res,
+        "Missing required parameters: amount, email, or currency",
+        400,
+      );
     }
 
     const supportedCurrencies = ["NGN", "USD"];
     if (!supportedCurrencies.includes(currency)) {
-      return sendError(res, `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(", ")}`, 400);
+      return sendError(
+        res,
+        `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(", ")}`,
+        400,
+      );
     }
 
     const tx_ref = `FLIGHT-${Date.now()}-${Math.floor(
-      Math.random() * 1000000
+      Math.random() * 1000000,
     )}`;
+
+    // Check if we're in development mode or keys are not set
+    const isDevelopmentMode =
+      process.env.NODE_ENV === "development" &&
+      (!process.env.FLUTTER_SECRET ||
+        !process.env.FLUTTERWAVE_SECRET_KEY ||
+        process.env.FLUTTER_SECRET?.includes("SANDBOXDEMOKEY") ||
+        process.env.FLUTTERWAVE_SECRET_KEY?.includes("SANDBOXDEMOKEY"));
+
+    if (isDevelopmentMode) {
+      // Mock payment for development
+      console.log("🧪 DEVELOPMENT MODE: Using mock payment flow");
+      console.log("💰 Mock payment details:", {
+        tx_ref,
+        amount,
+        currency,
+        email,
+        bookingData: JSON.stringify(bookingData).substring(0, 100) + "...",
+      });
+
+      // Return mock payment response
+      return sendSuccess(res, "Payment initialized successfully (MOCK)", {
+        publicKey: "MOCK_PUBLIC_KEY",
+        reference: tx_ref,
+        amount,
+        currency,
+        paymentLink: `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/success?tx_ref=${tx_ref}&status=successful&transaction_id=mock_${tx_ref}`,
+      });
+    }
 
     const getPaymentOptions = (curr: string) => {
       switch (curr) {
@@ -158,7 +197,7 @@ export const initializePayment = async (
           }`,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
 
     return sendSuccess(res, "Payment initialized successfully", {
@@ -171,7 +210,7 @@ export const initializePayment = async (
   } catch (error: any) {
     console.error(
       "Payment initialization error:",
-      error?.response?.data || error
+      error?.response?.data || error,
     );
     return sendError(res, "Error initializing payment", 500, error);
   }
@@ -180,13 +219,17 @@ export const initializePayment = async (
 // initialize stripe payment
 export const initializeStripePayment = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     const { amount, currency = "USD", email, bookingData } = req.body;
 
     if (!amount || !email) {
-      return sendError(res, "Missing required parameters: amount and email", 400);
+      return sendError(
+        res,
+        "Missing required parameters: amount and email",
+        400,
+      );
     }
 
     if (currency !== "USD") {
@@ -312,18 +355,20 @@ export const initializeStripePayment = async (
 
 export const verifyFlutterwavePaymentWithEmail = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<Response | any> => {
   try {
     const tx_ref = req.query.tx_ref || req.body.tx_ref;
 
     if (!tx_ref || typeof tx_ref !== "string") {
-      return sendError(res, "Valid transaction reference is required", 400, { error: "VALIDATION_ERROR" });
+      return sendError(res, "Valid transaction reference is required", 400, {
+        error: "VALIDATION_ERROR",
+      });
     }
 
     const response: any = await axios.get(
       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(
-        tx_ref
+        tx_ref,
       )}`,
       {
         headers: {
@@ -332,7 +377,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
           }`,
         },
         timeout: 10000,
-      }
+      },
     );
 
     const paymentData = response.data?.data;
@@ -342,7 +387,12 @@ export const verifyFlutterwavePaymentWithEmail = async (
       response.data.status !== "success" ||
       paymentData.status !== "successful"
     ) {
-      return sendError(res, "Payment verification failed or payment not successful", 400, { error: "PAYMENT_FAILED", data: paymentData || null });
+      return sendError(
+        res,
+        "Payment verification failed or payment not successful",
+        400,
+        { error: "PAYMENT_FAILED", data: paymentData || null },
+      );
     }
 
     // Parse meta.bookingData if it's a string
@@ -380,15 +430,29 @@ export const verifyFlutterwavePaymentWithEmail = async (
     console.error("Payment verification error:", error);
 
     if (error.code === "EAI_AGAIN") {
-      return sendError(res, "DNS/network error. Please try again.", 504, { error: "NETWORK_ERROR" });
+      return sendError(res, "DNS/network error. Please try again.", 504, {
+        error: "NETWORK_ERROR",
+      });
     }
 
     if (error.response) {
-      return sendError(res, error.response.data?.message || "Payment gateway error", 502, { error: "GATEWAY_ERROR" });
+      return sendError(
+        res,
+        error.response.data?.message || "Payment gateway error",
+        502,
+        { error: "GATEWAY_ERROR" },
+      );
     } else if (error.request) {
-      return sendError(res, "No response from payment gateway", 504, { error: "NETWORK_ERROR" });
+      return sendError(res, "No response from payment gateway", 504, {
+        error: "NETWORK_ERROR",
+      });
     } else {
-      return sendError(res, "Internal server error during verification", 500, error);
+      return sendError(
+        res,
+        "Internal server error during verification",
+        500,
+        error,
+      );
     }
   }
 };
@@ -396,7 +460,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
 // Verifying stipe payment
 export const verifyStripePayment = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<any> => {
   try {
     // You can receive paymentIntentId as a query parameter or in the body

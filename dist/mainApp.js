@@ -33,10 +33,13 @@ const mainApp = (app) => {
         "http://localhost:5173",
         "http://192.168.114.68:3000",
         "http://10.0.2.2:3000", // Android Emulator
+        "https://manwhit.lemonwares.com.ng",
     ].filter((o) => !!o);
     app.use((0, cors_1.default)({
         origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://192.168.")) {
+            if (!origin ||
+                allowedOrigins.includes(origin) ||
+                origin.startsWith("http://192.168.")) {
                 callback(null, true);
             }
             else {

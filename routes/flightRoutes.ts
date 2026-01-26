@@ -22,13 +22,19 @@ import {
   getFlightOfferDetails,
   // bookFlightWithAddons,
 } from "../controllers/flightController";
+import {
+  locationSearchRateLimit,
+  flightSearchRateLimit,
+} from "../middleware/rateLimitMiddleware";
 
 const router = express.Router();
-router.route("/search").get(searchFlights); // Working
+router.route("/search").get(locationSearchRateLimit, searchFlights); // Working - with rate limiting
 router.route("/save-flight-offer").post(saveSelectedFlightOffer); // Working
 router.route("/get-flight-offers").get(getFlightOffers); //Working
 router.route("/get-flight-offer/:id").get(getFlightOfferById); //working
-router.route("/search-flight-price").post(searchFlightPrice); //Working
+router
+  .route("/search-flight-price")
+  .post(flightSearchRateLimit, searchFlightPrice); //Working - with rate limiting
 
 router.route("/book-flight").post(bookFlightWithOptionalAddons); // Working
 router.route("/book-guest-flight").post(bookFlightAsGuest); // Working
