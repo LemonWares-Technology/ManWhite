@@ -1,15 +1,54 @@
 <div class="text-center">
-  <h2 style="font-size: 24px;">Activate Your Account</h2>
-  <p style="font-size: 16px; color: #555;">You're almost ready to start your journey with Manwhit Areos. Please confirm your email address to activate your account.</p>
+  <h2 style="font-size: 24px">Activate Your Account</h2>
+  <p style="font-size: 16px; color: #555">
+    You're almost ready to start your journey with Manwhit Areos. Please confirm
+    your email address to activate your account.
+  </p>
+
+  <!-- Verification Code Section -->
+  <div
+    style="
+      background-color: #f8f9fa;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    "
+  >
+    <h3 style="font-size: 18px; color: #333; margin-bottom: 10px">
+      Your Verification Code
+    </h3>
+    <div
+      style="
+        font-size: 32px;
+        font-weight: bold;
+        color: #d32f2f;
+        letter-spacing: 4px;
+        font-family: &quot;Courier New&quot;, monospace;
+      "
+    >
+      {{verificationCode}}
+    </div>
+    <p style="font-size: 14px; color: #666; margin-top: 10px">
+      Enter this code on the verification page to activate your account
+    </p>
+  </div>
 
   <a href="{{verificationUrl}}" class="button">Activate Account</a>
 
-  <div style="margin-top: 40px; border-top: 1px solid #f0f0f0; padding-top: 20px;">
-    <p style="font-size: 13px; color: #999;">Or copy and paste this link into your browser:</p>
-    <p style="font-size: 13px; color: #D32F2F; word-break: break-all;">{{verificationUrl}}</p>
+  <div
+    style="margin-top: 40px; border-top: 1px solid #f0f0f0; padding-top: 20px"
+  >
+    <p style="font-size: 13px; color: #999">
+      Or copy and paste this link into your browser:
+    </p>
+    <p style="font-size: 13px; color: #d32f2f; word-break: break-all">
+      {{verificationUrl}}
+    </p>
   </div>
-  
-  <p style="margin-top: 20px; font-size: 13px; color: #888;">
-    This link expires in 15 minutes. If you didn't create an account, you can ignore this email.
+
+  <p style="margin-top: 20px; font-size: 13px; color: #888">
+    This code and link expire in 15 minutes. If you didn't create an account,
+    you can ignore this email.
   </p>
 </div>

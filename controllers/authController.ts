@@ -109,7 +109,7 @@ export const verifyAccount = async (req: Request, res: Response): Promise<any> =
 };
 
 
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#])[A-Za-z\d@$!%*?&.#]{8,}$/;
 
 export const createPassword: any = async (req: Request, res: Response) => {
   try {

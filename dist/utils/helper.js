@@ -35,7 +35,7 @@ function getCachedIataCode(locationName, token) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c;
         // Robust check for IATA code (3 uppercase letters)
-        if (locationName && typeof locationName === 'string') {
+        if (locationName && typeof locationName === "string") {
             const trimmed = locationName.trim().toUpperCase();
             if (/^[A-Z]{3}$/.test(trimmed)) {
                 return trimmed;
@@ -75,16 +75,29 @@ function getCachedLocationDetails(iataCode, token) {
                 headers: { Authorization: `Bearer ${token}` },
                 params: {
                     keyword: iataCode,
-                    subType: "AIRPORT",
+                    subType: "CITY,AIRPORT", // Allow both city and airport codes
                 },
             });
             const details = (_a = response.data.data) === null || _a === void 0 ? void 0 : _a[0];
-            if (details)
+            if (details) {
                 locationCache[iataCode] = details;
+                console.log(`✅ Cached location details for ${iataCode}:`, {
+                    name: details.name,
+                    type: details.subType,
+                    iataCode: details.iataCode,
+                });
+            }
+            else {
+                console.log(`⚠️ No location details found for ${iataCode}`);
+                // Cache null result to avoid repeated failed requests
+                locationCache[iataCode] = null;
+            }
             return details;
         }
         catch (error) {
-            console.error(`Failed to get location for ${iataCode}:`, ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
+            console.error(`❌ Failed to get location for ${iataCode}:`, ((_b = error.response) === null || _b === void 0 ? void 0 : _b.data) || error.message);
+            // Cache null result to avoid repeated failed requests
+            locationCache[iataCode] = null;
             return null;
         }
     });

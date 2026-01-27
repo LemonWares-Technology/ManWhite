@@ -125,11 +125,13 @@ export const initializePayment = async (
 
     // Check if we're in development mode or keys are not set
     const isDevelopmentMode =
-      process.env.NODE_ENV === "development" &&
-      (!process.env.FLUTTER_SECRET ||
-        !process.env.FLUTTERWAVE_SECRET_KEY ||
-        process.env.FLUTTER_SECRET?.includes("SANDBOXDEMOKEY") ||
-        process.env.FLUTTERWAVE_SECRET_KEY?.includes("SANDBOXDEMOKEY"));
+      process.env.NODE_ENV === "development" ||
+      !process.env.FLUTTER_SECRET ||
+      !process.env.FLUTTERWAVE_SECRET_KEY ||
+      process.env.FLUTTER_SECRET?.includes("TEST") ||
+      process.env.FLUTTER_SECRET?.includes("SANDBOXDEMOKEY") ||
+      process.env.FLUTTERWAVE_SECRET_KEY?.includes("TEST") ||
+      process.env.FLUTTERWAVE_SECRET_KEY?.includes("SANDBOXDEMOKEY");
 
     if (isDevelopmentMode) {
       // Mock payment for development

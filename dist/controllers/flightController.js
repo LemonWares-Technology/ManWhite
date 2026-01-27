@@ -41,20 +41,32 @@ const rateLimiter_1 = require("../utils/rateLimiter");
 const baseURL = "https://test.api.amadeus.com";
 function searchFlights(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w;
         const { origin: queryOrigin, destination: queryDestination, originLocationCode, destinationLocationCode, adults, departureDate, keyword, currency = "NGN", getAirportDetails = false, } = req.query;
         // Map alternate parameter names
         const origin = (queryOrigin || originLocationCode);
         const destination = (queryDestination || destinationLocationCode);
+        console.log("🔍 Flight Search Request:", {
+            query: req.query,
+            origin,
+            destination,
+            adults,
+            departureDate,
+            keyword,
+            currency,
+            getAirportDetails,
+        });
         try {
             const token = yield (0, getToken_1.default)();
             // If keyword is provided, return location suggestions
             if (keyword && typeof keyword === "string" && keyword.trim().length > 0) {
+                console.log("🏢 Location Search Mode - Keyword:", keyword);
                 // Generate cache key for keyword search
                 const cacheKey = rateLimiter_1.SearchCache.generateKey({ keyword });
                 // Check cache first
                 const cachedResult = rateLimiter_1.SearchCache.get(cacheKey);
                 if (cachedResult) {
+                    console.log("💾 Returning cached location results:", cachedResult.length, "items");
                     return (0, apiResponse_1.sendSuccess)(res, "Suggestions retrieved from cache", cachedResult);
                 }
                 // Check rate limit before making API call
@@ -66,6 +78,7 @@ function searchFlights(req, res) {
                     });
                 }
                 try {
+                    console.log("🌐 Making Amadeus location API call for keyword:", keyword);
                     const { data } = yield axios_1.default.get(`${baseURL}/v1/reference-data/locations`, {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -74,6 +87,10 @@ function searchFlights(req, res) {
                             subType: "CITY,AIRPORT",
                             keyword,
                         },
+                    });
+                    console.log("📍 Amadeus location API response:", {
+                        dataCount: ((_a = data === null || data === void 0 ? void 0 : data.data) === null || _a === void 0 ? void 0 : _a.length) || 0,
+                        firstItem: ((_b = data === null || data === void 0 ? void 0 : data.data) === null || _b === void 0 ? void 0 : _b[0]) || null,
                     });
                     const suggestions = data.data.map((item) => {
                         var _a, _b, _c, _d;
@@ -90,14 +107,15 @@ function searchFlights(req, res) {
                             relevance: item.relevance,
                         })));
                     });
+                    console.log("✅ Processed suggestions:", suggestions.length, "items");
                     // Cache the successful result for 5 minutes
                     rateLimiter_1.SearchCache.set(cacheKey, suggestions, 300);
                     return (0, apiResponse_1.sendSuccess)(res, "Suggestions retrieved successfully", suggestions);
                 }
                 catch (suggestionError) {
-                    console.error("Amadeus Location Search Error:", ((_a = suggestionError.response) === null || _a === void 0 ? void 0 : _a.data) || suggestionError.message);
+                    console.error("Amadeus Location Search Error:", ((_c = suggestionError.response) === null || _c === void 0 ? void 0 : _c.data) || suggestionError.message);
                     // If it's a rate limit error, return appropriate response
-                    if (((_b = suggestionError.response) === null || _b === void 0 ? void 0 : _b.status) === 429) {
+                    if (((_d = suggestionError.response) === null || _d === void 0 ? void 0 : _d.status) === 429) {
                         return (0, apiResponse_1.sendError)(res, "API rate limit exceeded. Please try again later.", 429, {
                             retryAfter: 60,
                             cached: false,
@@ -135,12 +153,25 @@ function searchFlights(req, res) {
             }
             // For flight search, validate required fields
             if (!origin || !destination || !adults || !departureDate) {
+                console.log("❌ Missing required fields for flight search:", {
+                    origin: !!origin,
+                    destination: !!destination,
+                    adults: !!adults,
+                    departureDate: !!departureDate,
+                });
                 return (0, apiResponse_1.sendError)(res, "Missing required fields", 400);
             }
+            console.log("✈️ Flight Search Mode - Processing flight search...");
             const adultsNum = Number(adults);
+            console.log("👥 Adults count:", adultsNum);
             const originIata = yield (0, helper_1.getCachedIataCode)(origin, token);
             const destinationIata = yield (0, helper_1.getCachedIataCode)(destination, token);
+            console.log("🏢 IATA Code Resolution:", {
+                origin: `${origin} → ${originIata}`,
+                destination: `${destination} → ${destinationIata}`,
+            });
             if (!originIata || !destinationIata) {
+                console.log("❌ Could not resolve IATA codes");
                 return (0, apiResponse_1.sendError)(res, "Could not resolve IATA codes", 400);
             }
             let originInfo = null;
@@ -162,6 +193,7 @@ function searchFlights(req, res) {
             const excludedCodesArray = excludedAirlines
                 .map((a) => { var _a; return (_a = a.airlineCode) === null || _a === void 0 ? void 0 : _a.trim(); })
                 .filter((code) => code && /^[A-Z0-9]+$/.test(code));
+            console.log("🚫 Excluded airlines:", excludedCodesArray);
             const params = {
                 originLocationCode: originIata,
                 destinationLocationCode: destinationIata,
@@ -173,17 +205,34 @@ function searchFlights(req, res) {
             if (excludedCodesArray.length > 0) {
                 params.excludedAirlineCodes = excludedCodesArray.join(",");
             }
+            console.log("🔍 Amadeus flight search params:", params);
             const flightResponse = yield axios_1.default.get(`${baseURL}/v2/shopping/flight-offers`, {
                 headers: { Authorization: `Bearer ${token}` },
                 params,
             });
+            console.log("✈️ Amadeus flight search response:", {
+                status: flightResponse.status,
+                dataCount: ((_f = (_e = flightResponse.data) === null || _e === void 0 ? void 0 : _e.data) === null || _f === void 0 ? void 0 : _f.length) || 0,
+                meta: ((_g = flightResponse.data) === null || _g === void 0 ? void 0 : _g.meta) || null,
+                firstOffer: ((_j = (_h = flightResponse.data) === null || _h === void 0 ? void 0 : _h.data) === null || _j === void 0 ? void 0 : _j[0]) || null,
+            });
             const offers = flightResponse.data.data;
             const marginSetting = yield prisma_1.prisma.marginSetting.findFirst();
             const percent = (marginSetting === null || marginSetting === void 0 ? void 0 : marginSetting.amount) || 0;
+            console.log("💰 Margin setting:", {
+                percent,
+                marginSetting: !!marginSetting,
+            });
             const adjustedOffers = offers.map((offer) => {
                 const originalPrice = parseFloat(offer.price.total);
                 const priceWithMargin = originalPrice * (1 + percent / 100);
                 return Object.assign(Object.assign({}, offer), { price: Object.assign(Object.assign({}, offer.price), { total: parseFloat(priceWithMargin.toFixed(2)), grandTotal: parseFloat(priceWithMargin.toFixed(2)) }) });
+            });
+            console.log("💵 Price adjustment:", {
+                originalOffersCount: offers.length,
+                adjustedOffersCount: adjustedOffers.length,
+                sampleOriginalPrice: (_l = (_k = offers[0]) === null || _k === void 0 ? void 0 : _k.price) === null || _l === void 0 ? void 0 : _l.total,
+                sampleAdjustedPrice: (_o = (_m = adjustedOffers[0]) === null || _m === void 0 ? void 0 : _m.price) === null || _o === void 0 ? void 0 : _o.total,
             });
             // Enrichment optimization: Collect all unique IATA codes first
             const uniqueIatas = new Set();
@@ -195,16 +244,25 @@ function searchFlights(req, res) {
                     }
                 }
             }
+            console.log("🏢 Unique IATA codes for enrichment:", Array.from(uniqueIatas));
             // Fetch unique details with staggered delay to avoid 429
             const cityDetailsMap = new Map();
             const iataArray = Array.from(uniqueIatas);
+            console.log("🔄 Starting location details enrichment for", iataArray.length, "airports");
             // Process unique IATAs in sequence with a delay
             for (const iataCode of iataArray) {
-                const details = yield (0, helper_1.getCachedLocationDetails)(iataCode, token);
-                if (details) {
-                    cityDetailsMap.set(iataCode, details);
+                try {
+                    const details = yield (0, helper_1.getCachedLocationDetails)(iataCode, token);
+                    if (details) {
+                        cityDetailsMap.set(iataCode, details);
+                    }
+                }
+                catch (locationError) {
+                    console.error(`⚠️ Failed to get location details for ${iataCode}:`, locationError.message);
+                    // Continue processing other locations even if one fails
                 }
             }
+            console.log("✅ Location details enrichment completed:", cityDetailsMap.size, "details fetched");
             // Assign details back to segments
             for (const offer of adjustedOffers) {
                 for (const itinerary of offer.itineraries) {
@@ -232,29 +290,126 @@ function searchFlights(req, res) {
                     destination: destinationInfo,
                 };
             }
+            console.log("🎯 Final response data:", {
+                offersCount: ((_p = responseData.data) === null || _p === void 0 ? void 0 : _p.length) || 0,
+                meta: responseData.meta,
+                hasAirportDetails: !!responseData.airportDetails,
+                sampleOffer: ((_q = responseData.data) === null || _q === void 0 ? void 0 : _q[0])
+                    ? {
+                        id: responseData.data[0].id,
+                        price: responseData.data[0].price,
+                        itinerariesCount: (_r = responseData.data[0].itineraries) === null || _r === void 0 ? void 0 : _r.length,
+                    }
+                    : null,
+            });
             return (0, apiResponse_1.sendSuccess)(res, "Flight offers retrieved successfully", responseData);
         }
         catch (error) {
-            console.error("Flight Search Error:", ((_c = error.response) === null || _c === void 0 ? void 0 : _c.data) || error.message);
-            return (0, apiResponse_1.sendError)(res, "Failed to fetch flight offers", ((_d = error.response) === null || _d === void 0 ? void 0 : _d.status) || 500, ((_e = error.response) === null || _e === void 0 ? void 0 : _e.data) || error);
+            console.error("❌ Flight Search Error:", {
+                message: error.message,
+                status: (_s = error.response) === null || _s === void 0 ? void 0 : _s.status,
+                statusText: (_t = error.response) === null || _t === void 0 ? void 0 : _t.statusText,
+                data: (_u = error.response) === null || _u === void 0 ? void 0 : _u.data,
+                stack: error.stack,
+            });
+            return (0, apiResponse_1.sendError)(res, "Failed to fetch flight offers", ((_v = error.response) === null || _v === void 0 ? void 0 : _v.status) || 500, ((_w = error.response) === null || _w === void 0 ? void 0 : _w.data) || error);
         }
     });
 }
 function searchFlightPrice(req, res) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
         try {
             const { flightOffer } = req.body;
+            console.log("🔍 Flight pricing request received:", {
+                hasFlightOffer: !!flightOffer,
+                flightOfferType: typeof flightOffer,
+                flightOfferKeys: flightOffer ? Object.keys(flightOffer) : [],
+                flightOfferId: flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.id,
+                flightOfferSource: flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.source,
+                hasItineraries: !!(flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.itineraries),
+                itinerariesCount: ((_a = flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.itineraries) === null || _a === void 0 ? void 0 : _a.length) || 0,
+                hasPrice: !!(flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.price),
+                priceStructure: (flightOffer === null || flightOffer === void 0 ? void 0 : flightOffer.price) ? Object.keys(flightOffer.price) : [],
+            });
             if (!flightOffer) {
                 return (0, apiResponse_1.sendError)(res, "Missing flight offer in request body", 400);
             }
+            // Validate required flight offer structure
+            if (!flightOffer.id || !flightOffer.itineraries || !flightOffer.price) {
+                console.error("❌ Invalid flight offer structure:", {
+                    hasId: !!flightOffer.id,
+                    hasItineraries: !!flightOffer.itineraries,
+                    hasPrice: !!flightOffer.price,
+                    receivedKeys: Object.keys(flightOffer),
+                });
+                return (0, apiResponse_1.sendError)(res, "Invalid flight offer structure. Missing required fields: id, itineraries, or price", 400);
+            }
+            // Skip expiration check - let Amadeus API handle expired offers
+            // Flight offers expire very quickly (sometimes within hours) which creates poor UX
+            // The Amadeus pricing API will return appropriate errors for truly expired offers
+            console.log("ℹ️ Skipping local expiration check - Amadeus API will validate offer freshness");
+            if (flightOffer.lastTicketingDate || flightOffer.lastTicketingDateTime) {
+                console.log("📅 Flight offer ticketing info:", {
+                    offerId: flightOffer.id,
+                    lastTicketingDate: flightOffer.lastTicketingDate,
+                    lastTicketingDateTime: flightOffer.lastTicketingDateTime,
+                    note: "Expiration validation delegated to Amadeus API",
+                });
+            }
             const token = yield (0, getToken_1.default)();
+            // Clean the flight offer for Amadeus API (remove any backend-added fields)
+            const cleanFlightOffer = JSON.parse(JSON.stringify(flightOffer));
+            // Remove backend-added fields that Amadeus doesn't expect
+            if (cleanFlightOffer.price) {
+                delete cleanFlightOffer.price.originalTotal;
+                delete cleanFlightOffer.price.originalGrandTotal;
+                delete cleanFlightOffer.price.marginAdded;
+                delete cleanFlightOffer.price.billingCurrency;
+                // Ensure price values are strings (Amadeus expects strings)
+                if (typeof cleanFlightOffer.price.total === "number") {
+                    cleanFlightOffer.price.total = cleanFlightOffer.price.total.toString();
+                }
+                if (typeof cleanFlightOffer.price.grandTotal === "number") {
+                    cleanFlightOffer.price.grandTotal =
+                        cleanFlightOffer.price.grandTotal.toString();
+                }
+                if (typeof cleanFlightOffer.price.base === "number") {
+                    cleanFlightOffer.price.base = cleanFlightOffer.price.base.toString();
+                }
+            }
+            // Remove any enrichment details that were added during search
+            if (cleanFlightOffer.itineraries) {
+                for (const itinerary of cleanFlightOffer.itineraries) {
+                    if (itinerary.segments) {
+                        for (const segment of itinerary.segments) {
+                            (_b = segment.departure) === null || _b === void 0 ? true : delete _b.details;
+                            (_c = segment.arrival) === null || _c === void 0 ? true : delete _c.details;
+                        }
+                    }
+                }
+            }
+            console.log("🧹 Cleaned flight offer for Amadeus:", {
+                originalPriceKeys: flightOffer.price
+                    ? Object.keys(flightOffer.price)
+                    : [],
+                cleanedPriceKeys: cleanFlightOffer.price
+                    ? Object.keys(cleanFlightOffer.price)
+                    : [],
+                priceTotal: (_d = cleanFlightOffer.price) === null || _d === void 0 ? void 0 : _d.total,
+                priceGrandTotal: (_e = cleanFlightOffer.price) === null || _e === void 0 ? void 0 : _e.grandTotal,
+            });
             const payload = {
                 data: {
                     type: "flight-offers-pricing",
-                    flightOffers: [flightOffer],
+                    flightOffers: [cleanFlightOffer],
                 },
             };
+            console.log("🚀 Sending pricing request to Amadeus:", {
+                payloadType: payload.data.type,
+                flightOffersCount: payload.data.flightOffers.length,
+                firstOfferId: (_f = payload.data.flightOffers[0]) === null || _f === void 0 ? void 0 : _f.id,
+            });
             const response = yield axios_1.default.post(`${baseURL}/v1/shopping/flight-offers/pricing`, payload, {
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -262,38 +417,120 @@ function searchFlightPrice(req, res) {
                     "X-HTTP-Method-Override": "GET",
                 },
             });
+            console.log("✅ Amadeus pricing response received:", {
+                status: response.status,
+                hasData: !!response.data,
+                hasFlightOffers: !!((_h = (_g = response.data) === null || _g === void 0 ? void 0 : _g.data) === null || _h === void 0 ? void 0 : _h.flightOffers),
+                offersCount: ((_l = (_k = (_j = response.data) === null || _j === void 0 ? void 0 : _j.data) === null || _k === void 0 ? void 0 : _k.flightOffers) === null || _l === void 0 ? void 0 : _l.length) || 0,
+            });
+            console.log("💾 Fetching margin setting from database...");
             const marginSetting = yield prisma_1.prisma.marginSetting.findFirst({
                 orderBy: { createdAt: "desc" },
             });
+            let marginPercentage = 0; // Default to 0% margin if no setting found
             if (!marginSetting) {
-                return (0, apiResponse_1.sendError)(res, "Margin setting not configured", 500);
+                console.warn("⚠️ No margin setting found in database, using default 0% margin");
+                marginPercentage = 0;
             }
-            const marginPercentage = marginSetting.amount;
-            const modifiedFlightOffers = response.data.data.flightOffers.map((offer) => {
+            else {
+                console.log("✅ Margin setting retrieved:", {
+                    id: marginSetting.id,
+                    amount: marginSetting.amount,
+                    createdAt: marginSetting.createdAt,
+                });
+                marginPercentage = marginSetting.amount;
+            }
+            console.log("🔢 Processing flight offers with margin calculation...");
+            const modifiedFlightOffers = response.data.data.flightOffers.map((offer, index) => {
+                console.log(`📊 Processing offer ${index + 1}:`, {
+                    offerId: offer.id,
+                    originalTotal: offer.price.total,
+                    originalGrandTotal: offer.price.grandTotal,
+                    marginPercentage,
+                });
                 const originalTotal = parseFloat(offer.price.total);
                 const originalGrandTotal = parseFloat(offer.price.grandTotal);
+                if (isNaN(originalTotal) || isNaN(originalGrandTotal)) {
+                    console.error(`❌ Invalid price values in offer ${offer.id}:`, {
+                        total: offer.price.total,
+                        grandTotal: offer.price.grandTotal,
+                        totalParsed: originalTotal,
+                        grandTotalParsed: originalGrandTotal,
+                    });
+                    throw new Error(`Invalid price values in flight offer ${offer.id}`);
+                }
                 const marginAdded = (marginPercentage / 100) * originalGrandTotal;
                 return Object.assign(Object.assign({}, offer), { price: Object.assign(Object.assign({}, offer.price), { total: (originalTotal + marginAdded).toFixed(2), grandTotal: (originalGrandTotal + marginAdded).toFixed(2), originalTotal: originalTotal.toFixed(2), originalGrandTotal: originalGrandTotal.toFixed(2), marginAdded: {
                             value: marginAdded.toFixed(2),
                             percentage: marginPercentage,
                         } }) });
             });
-            // Enrich segments with detailed location info
-            for (const offer of modifiedFlightOffers) {
-                for (const itinerary of offer.itineraries) {
-                    for (const segment of itinerary.segments) {
-                        const originDetails = yield (0, helper_1.getCachedLocationDetails)(segment.departure.iataCode, token);
-                        const destinationDetails = yield (0, helper_1.getCachedLocationDetails)(segment.arrival.iataCode, token);
-                        segment.departure.details = originDetails;
-                        segment.arrival.details = destinationDetails;
+            console.log("✅ Flight offers processing completed successfully:", {
+                originalOffersCount: response.data.data.flightOffers.length,
+                modifiedOffersCount: modifiedFlightOffers.length,
+                sampleModifiedOffer: modifiedFlightOffers[0]
+                    ? {
+                        id: modifiedFlightOffers[0].id,
+                        originalPrice: modifiedFlightOffers[0].price.originalGrandTotal,
+                        newPrice: modifiedFlightOffers[0].price.grandTotal,
+                        marginAdded: modifiedFlightOffers[0].price.marginAdded,
                     }
-                }
-            }
-            return (0, apiResponse_1.sendSuccess)(res, "Flight pricing retrieved successfully", Object.assign(Object.assign({}, response.data), { data: Object.assign(Object.assign({}, response.data.data), { flightOffers: modifiedFlightOffers }) }));
+                    : null,
+            });
+            // Skip location enrichment for pricing endpoint to avoid rate limiting issues
+            // Location details are not essential for booking and can cause failures
+            console.log("ℹ️ Skipping location enrichment for pricing endpoint to ensure booking success");
+            console.log("🚀 Preparing final response...");
+            const finalResponse = Object.assign(Object.assign({}, response.data), { data: Object.assign(Object.assign({}, response.data.data), { flightOffers: modifiedFlightOffers }) });
+            console.log("✅ Final response prepared, sending success response");
+            return (0, apiResponse_1.sendSuccess)(res, "Flight pricing retrieved successfully", finalResponse);
         }
         catch (error) {
-            console.error("Flight pricing error:", ((_a = error.response) === null || _a === void 0 ? void 0 : _a.data) || error.message);
-            return (0, apiResponse_1.sendError)(res, "Failed to fetch flight pricing", 500, error);
+            console.error("❌ Flight pricing error occurred:", {
+                message: error.message,
+                stack: error.stack,
+                status: (_m = error.response) === null || _m === void 0 ? void 0 : _m.status,
+                statusText: (_o = error.response) === null || _o === void 0 ? void 0 : _o.statusText,
+                amadeusError: (_p = error.response) === null || _p === void 0 ? void 0 : _p.data,
+                hasResponse: !!error.response,
+                errorName: error.name,
+                errorCode: error.code,
+            });
+            // Handle specific Amadeus API errors
+            if (((_q = error.response) === null || _q === void 0 ? void 0 : _q.status) === 400) {
+                const amadeusError = error.response.data;
+                // Check if it's an expired offer error
+                if ((_r = amadeusError === null || amadeusError === void 0 ? void 0 : amadeusError.errors) === null || _r === void 0 ? void 0 : _r.some((err) => {
+                    var _a, _b, _c;
+                    return err.code === "4926" || // Offer expired
+                        ((_a = err.title) === null || _a === void 0 ? void 0 : _a.toLowerCase().includes("expired")) ||
+                        ((_b = err.detail) === null || _b === void 0 ? void 0 : _b.toLowerCase().includes("expired")) ||
+                        ((_c = err.detail) === null || _c === void 0 ? void 0 : _c.toLowerCase().includes("no longer available"));
+                })) {
+                    return (0, apiResponse_1.sendError)(res, "This flight offer has expired. Please search for new flights.", 400, {
+                        code: "OFFER_EXPIRED",
+                        details: "Flight prices change frequently. Please perform a new search to see current availability and pricing.",
+                    });
+                }
+                return (0, apiResponse_1.sendError)(res, "Invalid flight offer data", 400, {
+                    details: error.response.data,
+                    message: "The flight offer structure is invalid or contains outdated information",
+                });
+            }
+            if (((_s = error.response) === null || _s === void 0 ? void 0 : _s.status) === 429) {
+                return (0, apiResponse_1.sendError)(res, "Rate limit exceeded. Please try again later", 429, {
+                    retryAfter: 60,
+                });
+            }
+            return (0, apiResponse_1.sendError)(res, `Failed to fetch flight pricing: ${error.message}`, 500, {
+                error: process.env.NODE_ENV === "development"
+                    ? {
+                        message: error.message,
+                        stack: error.stack,
+                        amadeusResponse: (_t = error.response) === null || _t === void 0 ? void 0 : _t.data,
+                    }
+                    : undefined,
+            });
         }
     });
 }

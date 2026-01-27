@@ -25,7 +25,7 @@ const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTER_SECRET;
 const FLUTTERWAVE_PUBLIC_KEY = process.env.FLUTTER_PUBLIC;
 const FRONTEND_URL = process.env.FRONTEND_URL;
 // export const initializePayment = async (
-//   req: Request,
+//   req: Request,the
 //   res: Response
 // ): Promise<any> => {
 //   try {
@@ -96,7 +96,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 //   }
 // };
 const initializePayment = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f, _g;
     try {
         const { amount, email, bookingData, currency, baseAmountNGN } = req.body;
         if (!amount || !email || !currency) {
@@ -107,6 +107,33 @@ const initializePayment = (req, res) => __awaiter(void 0, void 0, void 0, functi
             return (0, apiResponse_1.sendError)(res, `Unsupported currency: ${currency}. Supported currencies: ${supportedCurrencies.join(", ")}`, 400);
         }
         const tx_ref = `FLIGHT-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+        // Check if we're in development mode or keys are not set
+        const isDevelopmentMode = process.env.NODE_ENV === "development" ||
+            !process.env.FLUTTER_SECRET ||
+            !process.env.FLUTTERWAVE_SECRET_KEY ||
+            ((_a = process.env.FLUTTER_SECRET) === null || _a === void 0 ? void 0 : _a.includes("TEST")) ||
+            ((_b = process.env.FLUTTER_SECRET) === null || _b === void 0 ? void 0 : _b.includes("SANDBOXDEMOKEY")) ||
+            ((_c = process.env.FLUTTERWAVE_SECRET_KEY) === null || _c === void 0 ? void 0 : _c.includes("TEST")) ||
+            ((_d = process.env.FLUTTERWAVE_SECRET_KEY) === null || _d === void 0 ? void 0 : _d.includes("SANDBOXDEMOKEY"));
+        if (isDevelopmentMode) {
+            // Mock payment for development
+            console.log("🧪 DEVELOPMENT MODE: Using mock payment flow");
+            console.log("💰 Mock payment details:", {
+                tx_ref,
+                amount,
+                currency,
+                email,
+                bookingData: JSON.stringify(bookingData).substring(0, 100) + "...",
+            });
+            // Return mock payment response
+            return (0, apiResponse_1.sendSuccess)(res, "Payment initialized successfully (MOCK)", {
+                publicKey: "MOCK_PUBLIC_KEY",
+                reference: tx_ref,
+                amount,
+                currency,
+                paymentLink: `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/success?tx_ref=${tx_ref}&status=successful&transaction_id=mock_${tx_ref}`,
+            });
+        }
         const getPaymentOptions = (curr) => {
             switch (curr) {
                 case "USD":
@@ -124,8 +151,8 @@ const initializePayment = (req, res) => __awaiter(void 0, void 0, void 0, functi
             redirect_url: `${process.env.FRONTEND_URL || FRONTEND_URL}/auth/success`,
             customer: {
                 email,
-                phone_number: (_a = bookingData === null || bookingData === void 0 ? void 0 : bookingData.guestInfo) === null || _a === void 0 ? void 0 : _a.phone,
-                name: ((_b = bookingData === null || bookingData === void 0 ? void 0 : bookingData.guestInfo) === null || _b === void 0 ? void 0 : _b.firstName)
+                phone_number: (_e = bookingData === null || bookingData === void 0 ? void 0 : bookingData.guestInfo) === null || _e === void 0 ? void 0 : _e.phone,
+                name: ((_f = bookingData === null || bookingData === void 0 ? void 0 : bookingData.guestInfo) === null || _f === void 0 ? void 0 : _f.firstName)
                     ? `${bookingData.guestInfo.firstName} ${bookingData.guestInfo.lastName}`
                     : "Guest User",
             },
@@ -154,7 +181,7 @@ const initializePayment = (req, res) => __awaiter(void 0, void 0, void 0, functi
         });
     }
     catch (error) {
-        console.error("Payment initialization error:", ((_c = error === null || error === void 0 ? void 0 : error.response) === null || _c === void 0 ? void 0 : _c.data) || error);
+        console.error("Payment initialization error:", ((_g = error === null || error === void 0 ? void 0 : error.response) === null || _g === void 0 ? void 0 : _g.data) || error);
         return (0, apiResponse_1.sendError)(res, "Error initializing payment", 500, error);
     }
 });
@@ -282,7 +309,9 @@ const verifyFlutterwavePaymentWithEmail = (req, res) => __awaiter(void 0, void 0
     try {
         const tx_ref = req.query.tx_ref || req.body.tx_ref;
         if (!tx_ref || typeof tx_ref !== "string") {
-            return (0, apiResponse_1.sendError)(res, "Valid transaction reference is required", 400, { error: "VALIDATION_ERROR" });
+            return (0, apiResponse_1.sendError)(res, "Valid transaction reference is required", 400, {
+                error: "VALIDATION_ERROR",
+            });
         }
         const response = yield axios_1.default.get(`https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`, {
             headers: {
@@ -330,13 +359,17 @@ const verifyFlutterwavePaymentWithEmail = (req, res) => __awaiter(void 0, void 0
     catch (error) {
         console.error("Payment verification error:", error);
         if (error.code === "EAI_AGAIN") {
-            return (0, apiResponse_1.sendError)(res, "DNS/network error. Please try again.", 504, { error: "NETWORK_ERROR" });
+            return (0, apiResponse_1.sendError)(res, "DNS/network error. Please try again.", 504, {
+                error: "NETWORK_ERROR",
+            });
         }
         if (error.response) {
             return (0, apiResponse_1.sendError)(res, ((_d = error.response.data) === null || _d === void 0 ? void 0 : _d.message) || "Payment gateway error", 502, { error: "GATEWAY_ERROR" });
         }
         else if (error.request) {
-            return (0, apiResponse_1.sendError)(res, "No response from payment gateway", 504, { error: "NETWORK_ERROR" });
+            return (0, apiResponse_1.sendError)(res, "No response from payment gateway", 504, {
+                error: "NETWORK_ERROR",
+            });
         }
         else {
             return (0, apiResponse_1.sendError)(res, "Internal server error during verification", 500, error);

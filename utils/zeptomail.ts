@@ -11,8 +11,7 @@ const SENDER_EMAIL: string =
   process.env.SENDER_EMAIL || "no-reply@manwhitaroes.com";
 const SENDER_NAME: string = process.env.SENDER_NAME || "Manwhit Areos";
 
-const ZEPTOMAIL_URL: string =
-  process.env.ZEPTOMAIL_URL || "api.zeptomail.com/";
+const ZEPTOMAIL_URL: string = process.env.ZEPTOMAIL_URL || "api.zeptomail.com/";
 
 // Initialize ZeptoMail client
 const client = new SendMailClient({
@@ -64,7 +63,7 @@ const compileTemplate = async (templateName: string, data: any) => {
 
 export const sendPaymentSuccessEmail = async (
   paymentData: any,
-  bookingData: any
+  bookingData: any,
 ) => {
   try {
     const booking =
@@ -98,12 +97,12 @@ export const sendPaymentSuccessEmail = async (
     });
 
     console.log(
-      `Payment confirmation email sent to ${paymentData.customer.email}`
+      `Payment confirmation email sent to ${paymentData.customer.email}`,
     );
   } catch (error: any) {
     console.error(
       "Failed to send payment confirmation email:",
-      error?.message || error
+      error?.message || error,
     );
   }
 };
@@ -112,7 +111,7 @@ export const sendPaymentSuccessEmailWithRetry = async (
   paymentData: any,
   bookingData: any,
   retries = 3,
-  delay = 1000
+  delay = 1000,
 ) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -132,10 +131,11 @@ export const sendPaymentSuccessEmailWithRetry = async (
 export const sendVerificationEmail = async (user: any) => {
   try {
     const BASE_URL: string = process.env.BASE_URL || "https://manwhitaroes.com";
-    
+
     const data = {
       title: "Account Activation",
-      verificationUrl: `${BASE_URL}/verify/${user.id}`,
+      verificationUrl: `${BASE_URL}/verify/${user.id}?email=${encodeURIComponent(user.email)}`,
+      verificationCode: user.verificationCode, // Add the verification code to the template data
     };
 
     const htmlContent = await compileTemplate("account-activation", data);
@@ -156,16 +156,19 @@ export const sendVerificationEmail = async (user: any) => {
 
     console.log(`Verification email sent to ${user.email}`);
   } catch (error: any) {
-    console.error("Failed to send verification email:", error?.message || error);
+    console.error(
+      "Failed to send verification email:",
+      error?.message || error,
+    );
     throw new Error(error?.message || "Failed to send verification email");
   }
 };
 
 export const verifyFlutterwavePaymentWithEmail = async (
   req: Request | any,
-  res: Response | any
+  res: Response | any,
 ): Promise<any> => {
-   try {
+  try {
     const tx_ref = req.query.tx_ref || req.body.tx_ref;
 
     if (!tx_ref) {
@@ -182,7 +185,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
         headers: {
           Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
         },
-      }
+      },
     );
 
     const paymentData = response.data?.data;
@@ -194,7 +197,7 @@ export const verifyFlutterwavePaymentWithEmail = async (
       try {
         await sendPaymentSuccessEmail(
           paymentData,
-          paymentData.meta?.bookingData
+          paymentData.meta?.bookingData,
         );
       } catch (emailError) {
         console.error("Failed to send confirmation email:", emailError);
@@ -246,7 +249,7 @@ export async function sendBookingConfirmationEmails({
           (segment: any) =>
             `<strong>${segment.departure.iataCode}</strong> → <strong>${
               segment.arrival.iataCode
-            }</strong> (${segment.departure.at.split("T")[0]})`
+            }</strong> (${segment.departure.at.split("T")[0]})`,
         )
         .join(" <br> ");
       return `<div style="margin-bottom: 10px;">${segments}</div>`;
@@ -282,14 +285,16 @@ export const sendVerificationToken = async (user: any) => {
 
     const data = {
       title: "Reset Password",
-      resetUrl: `${BASE_URL}/reset-password/${user.resetToken}`,
+      resetUrl: `${BASE_URL}/auth/reset-password?token=${user.recoveryCode}&email=${encodeURIComponent(user.email)}`,
     };
 
     const htmlContent = await compileTemplate("reset-password", data);
 
     await client.sendMail({
       from: { address: SENDER_EMAIL, name: SENDER_NAME },
-      to: [{ email_address: { address: user.email, name: user.name || "User" } }],
+      to: [
+        { email_address: { address: user.email, name: user.name || "User" } },
+      ],
       subject: "Reset Your Manwhit Password",
       htmlbody: htmlContent,
     });
@@ -312,7 +317,11 @@ export const sendAgentActivationToken = async (agent: any) => {
 
     await client.sendMail({
       from: { address: SENDER_EMAIL, name: SENDER_NAME },
-      to: [{ email_address: { address: agent.email, name: agent.name || "Agent" } }],
+      to: [
+        {
+          email_address: { address: agent.email, name: agent.name || "Agent" },
+        },
+      ],
       subject: "Agent Account Activation - Manwhit Areos",
       htmlbody: htmlContent,
     });
@@ -323,9 +332,20 @@ export const sendAgentActivationToken = async (agent: any) => {
   }
 };
 
-export const sendHotelBookingConfirmationEmail = async (bookingData: any, user: any) => {
+export const sendHotelBookingConfirmationEmail = async (
+  bookingData: any,
+  user: any,
+) => {
   try {
-    const { hotelName, checkInDate, checkOutDate, guests, totalAmount, currency, bookingId } = bookingData;
+    const {
+      hotelName,
+      checkInDate,
+      checkOutDate,
+      guests,
+      totalAmount,
+      currency,
+      bookingId,
+    } = bookingData;
     const ref = bookingId || bookingData.id || "N/A";
 
     const data = {
@@ -336,14 +356,16 @@ export const sendHotelBookingConfirmationEmail = async (bookingData: any, user: 
       checkInDate: formatDate(checkInDate),
       checkOutDate: formatDate(checkOutDate),
       guestCount: guests?.length || 1,
-      totalAmount: formatAmount(totalAmount || 0, currency || 'USD'),
+      totalAmount: formatAmount(totalAmount || 0, currency || "USD"),
     };
 
     const htmlContent = await compileTemplate("hotel-confirmation", data);
 
     await client.sendMail({
       from: { address: SENDER_EMAIL, name: SENDER_NAME },
-      to: [{ email_address: { address: user.email, name: user.name || "Guest" } }],
+      to: [
+        { email_address: { address: user.email, name: user.name || "Guest" } },
+      ],
       subject: `Hotel Booking Confirmation - ${hotelName}`,
       htmlbody: htmlContent,
     });
@@ -353,9 +375,20 @@ export const sendHotelBookingConfirmationEmail = async (bookingData: any, user: 
   }
 };
 
-export const sendCarBookingConfirmationEmail = async (bookingData: any, user: any) => {
+export const sendCarBookingConfirmationEmail = async (
+  bookingData: any,
+  user: any,
+) => {
   try {
-    const { carModel, pickupLocation, dropoffLocation, pickupDate, totalAmount, currency, bookingId } = bookingData;
+    const {
+      carModel,
+      pickupLocation,
+      dropoffLocation,
+      pickupDate,
+      totalAmount,
+      currency,
+      bookingId,
+    } = bookingData;
     const ref = bookingId || bookingData.id || "N/A";
 
     const data = {
@@ -366,14 +399,18 @@ export const sendCarBookingConfirmationEmail = async (bookingData: any, user: an
       pickupLocation,
       dropoffLocation,
       pickupDate: formatDate(pickupDate),
-      totalAmount: formatAmount(totalAmount || 0, currency || 'USD'),
+      totalAmount: formatAmount(totalAmount || 0, currency || "USD"),
     };
 
     const htmlContent = await compileTemplate("car-confirmation", data);
 
     await client.sendMail({
       from: { address: SENDER_EMAIL, name: SENDER_NAME },
-      to: [{ email_address: { address: user.email, name: user.name || "Customer" } }],
+      to: [
+        {
+          email_address: { address: user.email, name: user.name || "Customer" },
+        },
+      ],
       subject: `Car Rental Confirmation - ${ref}`,
       htmlbody: htmlContent,
     });
@@ -383,9 +420,13 @@ export const sendCarBookingConfirmationEmail = async (bookingData: any, user: an
   }
 };
 
-export const sendTourBookingConfirmationEmail = async (bookingData: any, user: any) => {
+export const sendTourBookingConfirmationEmail = async (
+  bookingData: any,
+  user: any,
+) => {
   try {
-    const { tourName, date, participants, totalAmount, currency, bookingId } = bookingData;
+    const { tourName, date, participants, totalAmount, currency, bookingId } =
+      bookingData;
     const ref = bookingId || bookingData.id || "N/A";
 
     const data = {
@@ -395,14 +436,18 @@ export const sendTourBookingConfirmationEmail = async (bookingData: any, user: a
       bookingId: ref,
       date: formatDate(date),
       participants: participants || 1,
-      totalAmount: formatAmount(totalAmount || 0, currency || 'USD'),
+      totalAmount: formatAmount(totalAmount || 0, currency || "USD"),
     };
 
     const htmlContent = await compileTemplate("tour-confirmation", data);
 
     await client.sendMail({
       from: { address: SENDER_EMAIL, name: SENDER_NAME },
-      to: [{ email_address: { address: user.email, name: user.name || "Traveler" } }],
+      to: [
+        {
+          email_address: { address: user.email, name: user.name || "Traveler" },
+        },
+      ],
       subject: `Tour Booking Confirmation - ${tourName}`,
       htmlbody: htmlContent,
     });
@@ -411,4 +456,3 @@ export const sendTourBookingConfirmationEmail = async (bookingData: any, user: a
     console.error("Failed to send tour confirmation email:", error);
   }
 };
-
