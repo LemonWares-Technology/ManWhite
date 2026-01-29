@@ -123,19 +123,37 @@ export const initializePayment = async (
       Math.random() * 1000000,
     )}`;
 
-    // Check if we're in development mode or keys are not set
-    const isDevelopmentMode =
-      process.env.NODE_ENV === "development" ||
-      !process.env.FLUTTER_SECRET ||
-      !process.env.FLUTTERWAVE_SECRET_KEY ||
-      process.env.FLUTTER_SECRET?.includes("TEST") ||
-      process.env.FLUTTER_SECRET?.includes("SANDBOXDEMOKEY") ||
-      process.env.FLUTTERWAVE_SECRET_KEY?.includes("TEST") ||
-      process.env.FLUTTERWAVE_SECRET_KEY?.includes("SANDBOXDEMOKEY");
+    // Check if we should use mock payments
+    // Only use mock payments if explicitly requested or if keys are completely missing
+    const useMockPayments =
+      process.env.USE_MOCK_PAYMENTS === "true" ||
+      (!process.env.FLUTTER_SECRET && !process.env.FLUTTERWAVE_SECRET_KEY);
+
+    // Allow forcing real Flutterwave
+    const forceRealPayment = process.env.FORCE_REAL_PAYMENT === "true";
+
+    const isDevelopmentMode = !forceRealPayment && useMockPayments;
+
+    console.log("💳 Payment mode detection:", {
+      NODE_ENV: process.env.NODE_ENV,
+      hasFlutterSecret: !!process.env.FLUTTER_SECRET,
+      hasFlutterwaveSecret: !!process.env.FLUTTERWAVE_SECRET_KEY,
+      secretContainsTest: process.env.FLUTTER_SECRET?.includes("TEST"),
+      useMockPayments,
+      forceRealPayment,
+      isDevelopmentMode,
+      mode: isDevelopmentMode ? "MOCK" : "REAL_FLUTTERWAVE",
+      message: isDevelopmentMode
+        ? "Using mock payments - set USE_MOCK_PAYMENTS=false to use real Flutterwave"
+        : "Using real Flutterwave payment gateway",
+    });
 
     if (isDevelopmentMode) {
       // Mock payment for development
-      console.log("🧪 DEVELOPMENT MODE: Using mock payment flow");
+      console.log("🧪 MOCK MODE: Using mock payment flow");
+      console.log(
+        "💡 To use real Flutterwave (including TEST environment), set USE_MOCK_PAYMENTS=false in .env",
+      );
       console.log("💰 Mock payment details:", {
         tx_ref,
         amount,
@@ -163,6 +181,17 @@ export const initializePayment = async (
           return "card,banktransfer,ussd";
       }
     };
+
+    console.log("🚀 Making Flutterwave payment initialization request...");
+    console.log("Payment request data:", {
+      tx_ref,
+      amount,
+      currency,
+      payment_options: getPaymentOptions(currency),
+      redirect_url: `${process.env.FRONTEND_URL || FRONTEND_URL}/auth/success`,
+      customer_email: email,
+      title: "Manwhit Areos Flight Booking",
+    });
 
     const response: any = await axios.post(
       "https://api.flutterwave.com/v3/payments",
@@ -201,6 +230,14 @@ export const initializePayment = async (
         },
       },
     );
+
+    console.log("✅ Flutterwave payment initialization successful!");
+    console.log("Payment response:", {
+      status: response.status,
+      hasData: !!response.data,
+      hasLink: !!response.data?.data?.link,
+      paymentLink: response.data?.data?.link,
+    });
 
     return sendSuccess(res, "Payment initialized successfully", {
       publicKey: process.env.FLUTTERWAVE_PUBLIC_KEY || FLUTTERWAVE_PUBLIC_KEY,
@@ -368,6 +405,69 @@ export const verifyFlutterwavePaymentWithEmail = async (
       });
     }
 
+    // Check if we should use mock payments
+    // Only use mock payments if explicitly requested or if keys are completely missing
+    const useMockPayments =
+      process.env.USE_MOCK_PAYMENTS === "true" ||
+      (!process.env.FLUTTER_SECRET && !process.env.FLUTTERWAVE_SECRET_KEY);
+
+    // Allow forcing real Flutterwave
+    const forceRealPayment = process.env.FORCE_REAL_PAYMENT === "true";
+
+    const isDevelopmentMode = !forceRealPayment && useMockPayments;
+
+    console.log("💳 Payment verification mode:", {
+      NODE_ENV: process.env.NODE_ENV,
+      useMockPayments,
+      forceRealPayment,
+      isDevelopmentMode,
+      mode: isDevelopmentMode ? "MOCK" : "REAL_FLUTTERWAVE",
+    });
+
+    // Handle mock payment verification for development
+    if (isDevelopmentMode && tx_ref.startsWith("FLIGHT-")) {
+      console.log("🧪 MOCK MODE: Using mock payment verification");
+      console.log(
+        "💡 To use real Flutterwave verification, set USE_MOCK_PAYMENTS=false in .env",
+      );
+
+      // Create mock payment data
+      const mockPaymentData = {
+        tx_ref,
+        amount: 100, // Mock amount
+        currency: "USD",
+        status: "successful",
+        customer: {
+          email: "test@example.com",
+          name: "Test User",
+        },
+        created_at: new Date().toISOString(),
+        meta: {
+          bookingData: JSON.stringify({
+            userId: null,
+            guestUserId: null,
+            flightOffer: { id: "mock-flight" },
+            travelers: [],
+          }),
+        },
+      };
+
+      console.log("✅ Mock payment verification successful");
+
+      return sendSuccess(res, "Payment verified successfully (MOCK)", {
+        reference: mockPaymentData.tx_ref,
+        amount: mockPaymentData.amount,
+        currency: mockPaymentData.currency,
+        status: mockPaymentData.status,
+      });
+    }
+
+    console.log("🚀 Making real Flutterwave payment verification request...");
+    console.log("Verification request:", {
+      tx_ref,
+      url: `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
+    });
+
     const response: any = await axios.get(
       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(
         tx_ref,
@@ -381,6 +481,13 @@ export const verifyFlutterwavePaymentWithEmail = async (
         timeout: 10000,
       },
     );
+
+    console.log("✅ Flutterwave verification response received:", {
+      status: response.status,
+      responseStatus: response.data?.status,
+      hasData: !!response.data?.data,
+      paymentStatus: response.data?.data?.status,
+    });
 
     const paymentData = response.data?.data;
 
@@ -407,9 +514,22 @@ export const verifyFlutterwavePaymentWithEmail = async (
       }
     }
 
+    // Clear cart for logged-in users (with error handling)
     const userId = bookingData?.userId;
     if (userId) {
-      await prisma.flightCart.deleteMany({ where: { userId } });
+      try {
+        // Ensure userId is properly formatted for database query
+        const userIdString = String(userId);
+        const result = await prisma.flightCart.deleteMany({
+          where: { userId: userIdString },
+        });
+        console.log(
+          `Cart cleared for user: ${userIdString}, deleted ${result.count} items`,
+        );
+      } catch (cartError) {
+        console.error("Failed to clear cart:", cartError);
+        // Don't fail the payment verification if cart clearing fails
+      }
     }
 
     // Send payment success email only if customer email exists

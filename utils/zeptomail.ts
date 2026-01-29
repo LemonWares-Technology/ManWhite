@@ -130,7 +130,8 @@ export const sendPaymentSuccessEmailWithRetry = async (
 
 export const sendVerificationEmail = async (user: any) => {
   try {
-    const BASE_URL: string = process.env.BASE_URL || "https://manwhitaroes.com";
+    const BASE_URL: string =
+      process.env.BASE_URL || "https://manwhit.lemonwares.com.ng";
 
     const data = {
       title: "Account Activation",
@@ -281,7 +282,8 @@ export async function sendBookingConfirmationEmails({
 
 export const sendVerificationToken = async (user: any) => {
   try {
-    const BASE_URL: string = process.env.BASE_URL || "https://manwhitaroes.com";
+    const BASE_URL: string =
+      process.env.BASE_URL || "https://manwhit.lemonwares.com.ng";
 
     const data = {
       title: "Reset Password",

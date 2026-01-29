@@ -1076,10 +1076,17 @@ export async function bookFlightAsGuest(
     const marginSetting: any = await prisma.marginSetting.findFirst({
       orderBy: { createdAt: "desc" },
     });
+
+    let marginPercentage = 0; // Default to 0% margin if no setting found
+
     if (!marginSetting) {
-      return sendError(res, "Margin setting not configured", 500);
+      console.warn(
+        "⚠️ No margin setting found in database, using default 0% margin",
+      );
+      marginPercentage = 0;
+    } else {
+      marginPercentage = marginSetting.amount;
     }
-    const marginPercentage = marginSetting.amount;
 
     // Extract base price from Amadeus response
     const flightOffersFromResp = amadeusBooking?.data?.flightOffers || [];
@@ -2321,13 +2328,19 @@ export async function bookFlightWithOptionalAddons(
     );
     console.log("Margin setting data:", JSON.stringify(marginSetting, null, 2));
 
+    let marginPercentage = 0; // Default to 0% margin if no setting found
+
     if (!marginSetting) {
-      console.error("Margin setting not found in database");
-      return sendError(res, "Margin setting not configured", 500);
+      console.warn(
+        "⚠️ No margin setting found in database, using default 0% margin",
+      );
+      marginPercentage = 0;
+    } else {
+      marginPercentage = marginSetting.amount;
+      console.log("✓ Margin percentage from database:", marginPercentage);
     }
 
-    const marginPercentage = marginSetting.amount;
-    console.log("✓ Margin percentage:", marginPercentage);
+    console.log("Final margin percentage to use:", marginPercentage);
 
     // Flight offers processing
     console.log("=== FLIGHT OFFERS PROCESSING ===");
