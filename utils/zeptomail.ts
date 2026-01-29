@@ -288,6 +288,7 @@ export const sendVerificationToken = async (user: any) => {
     const data = {
       title: "Reset Password",
       resetUrl: `${BASE_URL}/auth/reset-password?token=${user.recoveryCode}&email=${encodeURIComponent(user.email)}`,
+      recoveryCode: user.recoveryCode,
     };
 
     const htmlContent = await compileTemplate("reset-password", data);
